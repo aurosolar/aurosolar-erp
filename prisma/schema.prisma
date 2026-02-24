@@ -52,6 +52,7 @@ model Usuario {
   validaciones       Validacion[]
   incidenciasCreadas Incidencia[]      @relation("IncidenciaCreador")
   incidenciasAsignadas Incidencia[]    @relation("IncidenciaAsignado")
+  notificaciones   Notificacion[]
   pagosRegistrados   Pago[]
   documentosSubidos  Documento[]
   actividadesUsuario Actividad[]
@@ -658,4 +659,35 @@ model Catalogo {
 
   @@unique([tipo, codigo])
   @@map("catalogos")
+}
+
+// ═══════════════════════════════════════════
+// NOTIFICACIONES
+// ═══════════════════════════════════════════
+
+enum SeveridadNotificacion {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+model Notificacion {
+  id            String                  @id @default(uuid())
+  usuarioId     String                  @map("usuario_id")
+  titulo        String
+  mensaje       String
+  severidad     SeveridadNotificacion   @default(INFO)
+  tipo          String?                 // COBRO_PENDIENTE, INCIDENCIA, MATERIAL, OBRA_ESTADO, etc.
+  enlace        String?                 // URL relativa: /obras/xxx, /cobros, etc.
+  entidadTipo   String?                 @map("entidad_tipo")  // obra, incidencia, solicitud_material...
+  entidadId     String?                 @map("entidad_id")
+  leida         Boolean                 @default(false)
+  expiradaAt    DateTime?               @map("expirada_at")
+
+  createdAt     DateTime                @default(now()) @map("created_at")
+
+  usuario       Usuario                 @relation(fields: [usuarioId], references: [id])
+
+  @@index([usuarioId, leida])
+  @@map("notificaciones")
 }

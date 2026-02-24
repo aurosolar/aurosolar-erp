@@ -4,6 +4,8 @@
 import { usePathname, useRouter } from 'next/navigation';
 import type { Rol } from '@prisma/client';
 
+import { NotificationBell } from '@/components/NotificationBell';
+
 interface Props {
   usuario: {
     nombre: string;
@@ -19,6 +21,8 @@ const TITLES: Record<string, string> = {
   '/incidencias': 'Incidencias',
   '/legalizacion': 'Legalización',
   '/materiales': 'Material',
+  '/activos': 'Activos',
+  '/crm': 'CRM',
   '/usuarios': 'Usuarios',
   '/configuracion': 'Configuración',
   '/rentabilidad': 'Rentabilidad',
@@ -55,6 +59,9 @@ export function Topbar({ usuario }: Props) {
         <span>📅</span>
         <span>{fecha}</span>
       </div>
+
+      {/* Notificaciones */}
+      <NotificationBell />
 
       {/* Botón refrescar */}
       <button
