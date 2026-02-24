@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 
 interface Lead {
   id: string; nombre: string; apellidos: string; telefono: string; email: string;
-  estado: string; origen: string; direccion: string | null; tipo: string; potenciaEstimada: number | null;
+  estado: string; origen: string; tipo: string; potenciaEstimada: number | null;
   importeEstimado: number | null; notas: string; createdAt: string;
   comercial: { id: string; nombre: string } | null;
   visitas: Array<{ fecha: string; resultado: string }>;
@@ -174,7 +174,7 @@ export default function CRMPage() {
                   <a href={`tel:${detalleLead.telefono}`} className="flex items-center gap-2 text-sm text-auro-orange font-semibold">📱 {detalleLead.telefono}</a>
                 )}
                 {detalleLead.email && <div className="text-sm text-auro-navy/60">📧 {detalleLead.email}</div>}
-                {detalleLead?.notas && <div className="text-sm text-auro-navy/60">📍 {detalleLead?.notas}</div>}
+                {detalleLead.direccion && <div className="text-sm text-auro-navy/60">📍 {detalleLead.direccion}</div>}
                 <div className="flex gap-3">
                   {detalleLead.potenciaEstimada && <span className="text-xs bg-auro-surface-2 px-2 py-1 rounded-lg">⚡ {detalleLead.potenciaEstimada} kWp</span>}
                   {detalleLead.importeEstimado && <span className="text-xs bg-auro-surface-2 px-2 py-1 rounded-lg font-bold">💶 {fmt(detalleLead.importeEstimado)}</span>}

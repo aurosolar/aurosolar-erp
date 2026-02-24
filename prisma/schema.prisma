@@ -56,6 +56,7 @@ model Usuario {
   pagosRegistrados   Pago[]
   documentosSubidos  Documento[]
   actividadesUsuario Actividad[]
+  subvencionesResponsable Subvencion[] @relation("SubvencionResponsable")
   leadsAsignados     Lead[]
   visitasComercial   Visita[]
   sesiones           Session[]
@@ -272,6 +273,7 @@ model Obra {
   solicitudesMaterial SolicitudMaterial[]
   lead              Lead?
   comision          Comision?
+  subvenciones      Subvencion[]
 
   @@map("obras")
 }
@@ -690,4 +692,53 @@ model Notificacion {
 
   @@index([usuarioId, leida])
   @@map("notificaciones")
+}
+
+// ── Subvenciones ──
+enum EstadoSubvencion {
+  PENDIENTE
+  SOLICITADA
+  EN_TRAMITE
+  APROBADA
+  DENEGADA
+  COBRADA
+  CADUCADA
+}
+
+enum TipoSubvencion {
+  NEXT_GENERATION
+  AUTOCONSUMO_CCAA
+  PLAN_MOVES
+  IDAE
+  MUNICIPAL
+  OTRA
+}
+
+model Subvencion {
+  id              String            @id @default(uuid())
+  obraId          String            @map("obra_id")
+  tipo            TipoSubvencion
+  estado          EstadoSubvencion  @default(PENDIENTE)
+  programa        String?           // Nombre del programa
+  convocatoria    String?           // Ref. convocatoria
+  expediente      String?           // Nº expediente
+  importeSolicitado Int             @default(0) @map("importe_solicitado") // Céntimos
+  importeAprobado   Int?            @map("importe_aprobado") // Céntimos
+  importeCobrado    Int?            @map("importe_cobrado") // Céntimos
+  fechaSolicitud    DateTime?       @map("fecha_solicitud")
+  fechaAprobacion   DateTime?       @map("fecha_aprobacion")
+  fechaCobro        DateTime?       @map("fecha_cobro")
+  fechaLimite       DateTime?       @map("fecha_limite") // Fecha máx. para cobrar/caducar
+  notas             String?
+  responsableId     String?         @map("responsable_id")
+
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  obra            Obra              @relation(fields: [obraId], references: [id])
+  responsable     Usuario?          @relation("SubvencionResponsable", fields: [responsableId], references: [id])
+
+  @@index([obraId])
+  @@index([estado])
+  @@map("subvenciones")
 }

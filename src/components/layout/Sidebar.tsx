@@ -28,6 +28,7 @@ const NAV_ITEMS = [
     { href: '/materiales', icon: '📦', text: 'Material', roles: ['ADMIN','DIRECCION','JEFE_INSTALACIONES'] },
     { href: '/activos', icon: '🔋', text: 'Activos', roles: ['ADMIN','DIRECCION','JEFE_INSTALACIONES','ADMINISTRACION'] },
     { href: '/clientes', icon: '👥', text: 'Clientes', roles: ['ADMIN','DIRECCION','JEFE_INSTALACIONES','ADMINISTRACION','COMERCIAL'] },
+    { href: '/subvenciones', icon: '🏛️', text: 'Subvenciones', roles: ['ADMIN','DIRECCION','ADMINISTRACION'] },
     { href: '/documentos', icon: '📁', text: 'Documentos', roles: ['ADMIN','DIRECCION','JEFE_INSTALACIONES','ADMINISTRACION'] },
   ]},
   { label: 'Análisis', items: [

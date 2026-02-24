@@ -24,7 +24,7 @@ interface Obra {
   _count: { incidencias: number };
 }
 
-const _ESTADOS_CONFIG: Record<string, { label: string; color: string; bg: string; dot: string }> = {
+const ESTADOS_CONFIG: Record<string, { label: string; color: string; bg: string; dot: string }> = {
   REVISION_TECNICA: { label: 'Revisión', color: 'text-estado-purple', bg: 'bg-estado-purple/10', dot: 'bg-estado-purple' },
   PREPARANDO: { label: 'Preparando', color: 'text-estado-amber', bg: 'bg-estado-amber/10', dot: 'bg-estado-amber' },
   PENDIENTE_MATERIAL: { label: 'Pte. Material', color: 'text-estado-amber', bg: 'bg-estado-amber/10', dot: 'bg-estado-amber' },
@@ -37,6 +37,8 @@ const _ESTADOS_CONFIG: Record<string, { label: string; color: string; bg: string
   COMPLETADA: { label: 'Completada', color: 'text-estado-green', bg: 'bg-estado-green/10', dot: 'bg-estado-green' },
   CANCELADA: { label: 'Cancelada', color: 'text-auro-navy/40', bg: 'bg-auro-navy/5', dot: 'bg-auro-navy/30' },
 };
+
+export { ESTADOS_CONFIG };
 
 export default function ObrasPage() {
   const [obras, setObras] = useState<Obra[]>([]);
@@ -107,7 +109,7 @@ export default function ObrasPage() {
         >
           Todas · {total}
         </button>
-        {Object.entries(_ESTADOS_CONFIG).map(([key, config]) => {
+        {Object.entries(ESTADOS_CONFIG).map(([key, config]) => {
           const count = contadores[key] || 0;
           if (count === 0 && !filtroEstado) return null;
           return (
@@ -176,7 +178,7 @@ export default function ObrasPage() {
               </thead>
               <tbody>
                 {obras.map((obra) => {
-                  const estadoCfg = _ESTADOS_CONFIG[obra.estado] || _ESTADOS_CONFIG.REVISION_TECNICA;
+                  const estadoCfg = ESTADOS_CONFIG[obra.estado] || ESTADOS_CONFIG.REVISION_TECNICA;
                   const euros = (obra.presupuestoTotal / 100).toLocaleString('es-ES', { minimumFractionDigits: 0 });
                   return (
                     <tr

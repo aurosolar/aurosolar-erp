@@ -14,7 +14,7 @@ interface Cliente {
 interface ClienteDetalle extends Cliente {
   obras: Array<{
     id: string; codigo: string; estado: string; tipo: string;
-    presupuestoTotal: number; localidad: string | null; createdAt: string;
+    presupuesto: number | null; localidad: string | null; createdAt: string;
     pagos: Array<{ importe: number }>;
   }>;
   leads: Array<{
@@ -162,7 +162,7 @@ export default function ClientesPage() {
 function DetalleModal({ cliente, onClose, onEditar, onRefresh }: {
   cliente: ClienteDetalle; onClose: () => void; onEditar: () => void; onRefresh: () => void;
 }) {
-  const totalPresupuestado = cliente.obras.reduce((s, o) => s + (o.presupuestoTotal || 0), 0);
+  const totalPresupuestado = cliente.obras.reduce((s, o) => s + (o.presupuesto || 0), 0);
   const totalCobrado = cliente.obras.reduce((s, o) => s + o.pagos.reduce((ps, p) => ps + p.importe, 0), 0);
 
   return (
@@ -223,7 +223,7 @@ function DetalleModal({ cliente, onClose, onEditar, onRefresh }: {
               <div className="space-y-1.5">
                 {cliente.obras.map(o => {
                   const cobrado = o.pagos.reduce((s, p) => s + p.importe, 0);
-                  const pct = o.presupuestoTotal ? Math.round((cobrado / o.presupuestoTotal) * 100) : 0;
+                  const pct = o.presupuesto ? Math.round((cobrado / o.presupuesto) * 100) : 0;
                   return (
                     <div key={o.id} className="flex items-center gap-2 bg-auro-surface-2 rounded-lg px-3 py-2">
                       <div className="flex-1 min-w-0">
@@ -234,7 +234,7 @@ function DetalleModal({ cliente, onClose, onEditar, onRefresh }: {
                         {o.estado}
                       </span>
                       <div className="text-right shrink-0">
-                        <div className="text-xs font-bold">{fmtMoney(o.presupuestoTotal)}</div>
+                        <div className="text-xs font-bold">{fmtMoney(o.presupuesto)}</div>
                         <div className="text-[9px] text-auro-navy/25">{pct}% cobrado</div>
                       </div>
                     </div>
