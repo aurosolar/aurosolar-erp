@@ -1,0 +1,656 @@
+// ═══════════════════════════════════════════════════════════
+// AURO SOLAR ENERGÍA — Modelo de Datos (Prisma Schema)
+// Basado en: Modelo de Datos, Especificaciones, Automatizaciones
+// ═══════════════════════════════════════════════════════════
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ═══════════════════════════════════════════
+// USUARIOS Y ROLES
+// ═══════════════════════════════════════════
+
+enum Rol {
+  ADMIN
+  DIRECCION
+  COMERCIAL
+  JEFE_INSTALACIONES
+  INSTALADOR
+  ADMINISTRACION
+}
+
+model Usuario {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  nombre        String
+  apellidos     String    @default("")
+  passwordHash  String    @map("password_hash")
+  rol           Rol
+  activo        Boolean   @default(true)
+  telefono      String?
+  avatarUrl     String?   @map("avatar_url")
+  zona          String?   // Para comerciales
+  objetivoMensual Int?    @map("objetivo_mensual") // Céntimos, para comerciales
+
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  // Relaciones
+  obrasComercial     Obra[]            @relation("ObraComercial")
+  obrasInstalador    ObraInstalador[]
+  checkins           Checkin[]
+  gastosRegistrados  Gasto[]
+  validaciones       Validacion[]
+  incidenciasCreadas Incidencia[]      @relation("IncidenciaCreador")
+  incidenciasAsignadas Incidencia[]    @relation("IncidenciaAsignado")
+  pagosRegistrados   Pago[]
+  documentosSubidos  Documento[]
+  actividadesUsuario Actividad[]
+  leadsAsignados     Lead[]
+  visitasComercial   Visita[]
+  sesiones           Session[]
+
+  @@map("usuarios")
+}
+
+model Session {
+  id            String   @id @default(uuid())
+  usuarioId     String   @map("usuario_id")
+  token         String   @unique
+  expiresAt     DateTime @map("expires_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  usuario       Usuario  @relation(fields: [usuarioId], references: [id])
+
+  @@map("sessions")
+}
+
+// ═══════════════════════════════════════════
+// CLIENTES
+// ═══════════════════════════════════════════
+
+model Cliente {
+  id            String    @id @default(uuid())
+  nombre        String
+  apellidos     String    @default("")
+  dniCif        String?   @unique @map("dni_cif")
+  direccion     String?
+  codigoPostal  String?   @map("codigo_postal")
+  localidad     String?
+  provincia     String?
+  telefono      String?
+  email         String?
+  notas         String?
+
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  // Relaciones
+  obras         Obra[]
+  leads         Lead[]
+
+  @@map("clientes")
+}
+
+// ═══════════════════════════════════════════
+// CRM: LEADS Y OPORTUNIDADES
+// ═══════════════════════════════════════════
+
+enum EstadoLead {
+  NUEVO
+  CONTACTADO
+  VISITA_PROGRAMADA
+  PRESUPUESTO_ENVIADO
+  ACEPTADO
+  NO_INTERESADO
+  CONVERTIDO
+}
+
+enum OrigenLead {
+  WEB
+  RECOMENDACION
+  FERIA
+  PUERTA_FRIA
+  REPETIDOR
+  TELEFONO
+  OTRO
+}
+
+enum TipoInstalacion {
+  RESIDENCIAL
+  INDUSTRIAL
+  AGROINDUSTRIAL
+  BATERIA
+  AEROTERMIA
+  BESS
+  BACKUP
+}
+
+model Lead {
+  id                String       @id @default(uuid())
+  nombre            String
+  apellidos         String       @default("")
+  telefono          String?
+  email             String?
+  direccion         String?
+  localidad         String?
+  provincia         String?
+  origen            OrigenLead
+  tipo              TipoInstalacion
+  estado            EstadoLead   @default(NUEVO)
+  potenciaEstimada  Float?       @map("potencia_estimada_kwp") // kWp
+  importeEstimado   Int?         @map("importe_estimado") // Céntimos
+  notas             String?
+
+  comercialId       String?      @map("comercial_id")
+  clienteId         String?      @map("cliente_id")
+  obraId            String?      @unique @map("obra_id") // Si se convirtió
+
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
+  deletedAt         DateTime?    @map("deleted_at")
+
+  // Relaciones
+  comercial         Usuario?     @relation(fields: [comercialId], references: [id])
+  cliente           Cliente?     @relation(fields: [clienteId], references: [id])
+  obra              Obra?        @relation(fields: [obraId], references: [id])
+  visitas           Visita[]
+
+  @@map("leads")
+}
+
+model Visita {
+  id            String    @id @default(uuid())
+  leadId        String    @map("lead_id")
+  comercialId   String    @map("comercial_id")
+  fecha         DateTime
+  resultado     String    // Interesado, Pide presupuesto, No interesado, Reprogramar
+  notas         String?
+  fotoCubiertaUrl String? @map("foto_cubierta_url")
+
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  // Relaciones
+  lead          Lead      @relation(fields: [leadId], references: [id])
+  comercial     Usuario   @relation(fields: [comercialId], references: [id])
+
+  @@map("visitas")
+}
+
+// ═══════════════════════════════════════════
+// OBRAS (entidad central)
+// ═══════════════════════════════════════════
+
+enum EstadoObra {
+  REVISION_TECNICA
+  PREPARANDO
+  PENDIENTE_MATERIAL
+  PROGRAMADA
+  INSTALANDO
+  TERMINADA
+  INCIDENCIA
+  LEGALIZACION
+  LEGALIZADA
+  COMPLETADA
+  CANCELADA
+}
+
+enum EstadoLegalizacion {
+  NO_APLICA
+  PENDIENTE
+  SOLICITADA
+  EN_TRAMITE
+  APROBADA
+  INSCRITA
+}
+
+model Obra {
+  id                String           @id @default(uuid())
+  codigo            String           @unique // A-YYYY-MM-XXX
+  clienteId         String           @map("cliente_id")
+  tipo              TipoInstalacion
+  estado            EstadoObra       @default(REVISION_TECNICA)
+  estadoLegalizacion EstadoLegalizacion @default(PENDIENTE) @map("estado_legalizacion")
+
+  // Datos técnicos
+  direccionInstalacion String?       @map("direccion_instalacion")
+  localidad         String?
+  provincia         String?
+  potenciaKwp       Float?           @map("potencia_kwp")
+  numPaneles        Int?             @map("num_paneles")
+  marcaPaneles      String?          @map("marca_paneles")
+  inversor          String?
+  bateriaKwh        Float?           @map("bateria_kwh")
+
+  // Económico (todo en céntimos)
+  presupuestoTotal  Int              @default(0) @map("presupuesto_total")
+  costeTotal        Int              @default(0) @map("coste_total")
+
+  // Fechas clave
+  fechaCreacion     DateTime         @default(now()) @map("fecha_creacion")
+  fechaProgramada   DateTime?        @map("fecha_programada")
+  fechaInicio       DateTime?        @map("fecha_inicio")
+  fechaFin          DateTime?        @map("fecha_fin")
+  fechaLegalizacion DateTime?        @map("fecha_legalizacion")
+
+  // Legalización
+  expedienteLegal   String?          @map("expediente_legal")
+  notasLegalizacion String?          @map("notas_legalizacion")
+
+  // Responsables
+  comercialId       String?          @map("comercial_id")
+  notas             String?
+
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+  deletedAt         DateTime?        @map("deleted_at")
+
+  // Relaciones
+  cliente           Cliente          @relation(fields: [clienteId], references: [id])
+  comercial         Usuario?         @relation("ObraComercial", fields: [comercialId], references: [id])
+  instaladores      ObraInstalador[]
+  planPagos         PlanPago[]
+  pagos             Pago[]
+  documentos        Documento[]
+  checkins          Checkin[]
+  gastos            Gasto[]
+  validaciones      Validacion[]
+  incidencias       Incidencia[]
+  activos           ActivoInstalado[]
+  actividades       Actividad[]
+  solicitudesMaterial SolicitudMaterial[]
+  lead              Lead?
+  comision          Comision?
+
+  @@map("obras")
+}
+
+// Tabla intermedia para asignación de instaladores a obras
+model ObraInstalador {
+  id            String   @id @default(uuid())
+  obraId        String   @map("obra_id")
+  instaladorId  String   @map("instalador_id")
+  esJefe        Boolean  @default(false) @map("es_jefe")
+
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  obra          Obra     @relation(fields: [obraId], references: [id])
+  instalador    Usuario  @relation(fields: [instaladorId], references: [id])
+
+  @@unique([obraId, instaladorId])
+  @@map("obra_instaladores")
+}
+
+// ═══════════════════════════════════════════
+// COBROS Y PAGOS
+// ═══════════════════════════════════════════
+
+enum MetodoPago {
+  TRANSFERENCIA
+  EFECTIVO
+  FINANCIACION
+  TARJETA
+  DOMICILIACION
+}
+
+model PlanPago {
+  id            String    @id @default(uuid())
+  obraId        String    @map("obra_id")
+  concepto      String    // "Anticipo 50%", "Fin obra 40%", "Tras legalización 10%"
+  importe       Int       // Céntimos
+  orden         Int       @default(0)
+  fechaPrevista DateTime? @map("fecha_prevista")
+  pagado        Boolean   @default(false)
+
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  obra          Obra      @relation(fields: [obraId], references: [id])
+
+  @@map("plan_pagos")
+}
+
+model Pago {
+  id            String     @id @default(uuid())
+  obraId        String     @map("obra_id")
+  importe       Int        // Céntimos
+  metodo        MetodoPago
+  fechaCobro    DateTime   @map("fecha_cobro")
+  concepto      String?
+  justificanteUrl String?  @map("justificante_url")
+  efectivoIngresado Boolean @default(false) @map("efectivo_ingresado") // Solo para efectivo
+
+  registradoPorId String  @map("registrado_por_id")
+
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  obra          Obra      @relation(fields: [obraId], references: [id])
+  registradoPor Usuario   @relation(fields: [registradoPorId], references: [id])
+
+  @@map("pagos")
+}
+
+model Comision {
+  id            String   @id @default(uuid())
+  obraId        String   @unique @map("obra_id")
+  comercialEmail String  @map("comercial_email")
+  presupuesto   Int      // Céntimos
+  porcentaje    Float    // 0.03 = 3%
+  importe       Int      // Céntimos
+  estado        String   @default("PENDIENTE") // PENDIENTE, PAGADA
+
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  obra          Obra     @relation(fields: [obraId], references: [id])
+
+  @@map("comisiones")
+}
+
+// ═══════════════════════════════════════════
+// DOCUMENTOS
+// ═══════════════════════════════════════════
+
+enum TipoDocumento {
+  PRESUPUESTO
+  CONTRATO
+  FACTURA
+  BOLETIN
+  CERTIFICADO
+  MEMORIA_TECNICA
+  FOTO_INSTALACION
+  FOTO_INVERSOR
+  FOTO_PANELES
+  FOTO_CUADRO
+  FOTO_GENERAL
+  JUSTIFICANTE_PAGO
+  TICKET_GASTO
+  SUBVENCION
+  OTRO
+}
+
+model Documento {
+  id            String        @id @default(uuid())
+  obraId        String        @map("obra_id")
+  tipo          TipoDocumento
+  nombre        String
+  descripcion   String?
+  rutaArchivo   String        @map("ruta_archivo")
+  mimeType      String?       @map("mime_type")
+  tamanoBytes   Int?          @map("tamano_bytes")
+  estado        String        @default("ACTIVO") // ACTIVO, APROBADO, RECHAZADO
+
+  subidoPorId   String        @map("subido_por_id")
+
+  createdAt     DateTime      @default(now()) @map("created_at")
+  deletedAt     DateTime?     @map("deleted_at")
+
+  obra          Obra          @relation(fields: [obraId], references: [id])
+  subidoPor     Usuario       @relation(fields: [subidoPorId], references: [id])
+
+  @@map("documentos")
+}
+
+// ═══════════════════════════════════════════
+// CAMPO: CHECKINS, GASTOS, VALIDACIONES
+// ═══════════════════════════════════════════
+
+model Checkin {
+  id            String    @id @default(uuid())
+  obraId        String    @map("obra_id")
+  instaladorId  String    @map("instalador_id")
+  horaEntrada   DateTime  @map("hora_entrada")
+  horaSalida    DateTime? @map("hora_salida")
+  fotoUrl       String?   @map("foto_url")
+  nota          String?
+  latitud       Float?
+  longitud      Float?
+
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  obra          Obra      @relation(fields: [obraId], references: [id])
+  instalador    Usuario   @relation(fields: [instaladorId], references: [id])
+
+  @@map("checkins")
+}
+
+enum TipoGasto {
+  MATERIAL_EXTRA
+  COMBUSTIBLE
+  DIETA
+  PARKING_PEAJE
+  HERRAMIENTA
+  OTRO
+}
+
+model Gasto {
+  id            String    @id @default(uuid())
+  obraId        String    @map("obra_id")
+  tipo          TipoGasto
+  importe       Int       // Céntimos
+  descripcion   String?
+  fotoTicketUrl String?   @map("foto_ticket_url")
+
+  registradoPorId String @map("registrado_por_id")
+
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  obra          Obra      @relation(fields: [obraId], references: [id])
+  registradoPor Usuario   @relation(fields: [registradoPorId], references: [id])
+
+  @@map("gastos")
+}
+
+model Validacion {
+  id            String    @id @default(uuid())
+  obraId        String    @map("obra_id")
+  potenciaReal  Float?    @map("potencia_real_kwp")
+  numPanelesReal Int?     @map("num_paneles_real")
+  fotoInversorUrl String? @map("foto_inversor_url")
+  fotoPanelesUrl  String? @map("foto_paneles_url")
+  fotoCuadroUrl   String? @map("foto_cuadro_url")
+  fotoGeneralUrl  String? @map("foto_general_url")
+  observaciones String?
+  completa      Boolean   @default(false)
+
+  validadoPorId String    @map("validado_por_id")
+
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  obra          Obra      @relation(fields: [obraId], references: [id])
+  validadoPor   Usuario   @relation(fields: [validadoPorId], references: [id])
+
+  @@map("validaciones")
+}
+
+// ═══════════════════════════════════════════
+// INCIDENCIAS
+// ═══════════════════════════════════════════
+
+enum Gravedad {
+  BAJA
+  MEDIA
+  ALTA
+  CRITICA
+}
+
+enum EstadoIncidencia {
+  ABIERTA
+  EN_PROCESO
+  RESUELTA
+  CERRADA
+}
+
+model Incidencia {
+  id            String           @id @default(uuid())
+  obraId        String           @map("obra_id")
+  gravedad      Gravedad
+  estado        EstadoIncidencia @default(ABIERTA)
+  descripcion   String
+  fotoUrl       String?          @map("foto_url")
+  notasResolucion String?        @map("notas_resolucion")
+
+  creadoPorId   String           @map("creado_por_id")
+  asignadoAId   String?          @map("asignado_a_id")
+
+  fechaResolucion DateTime?      @map("fecha_resolucion")
+
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+
+  obra          Obra             @relation(fields: [obraId], references: [id])
+  creadoPor     Usuario          @relation("IncidenciaCreador", fields: [creadoPorId], references: [id])
+  asignadoA     Usuario?         @relation("IncidenciaAsignado", fields: [asignadoAId], references: [id])
+
+  @@map("incidencias")
+}
+
+// ═══════════════════════════════════════════
+// MATERIALES
+// ═══════════════════════════════════════════
+
+enum EstadoSolicitud {
+  BORRADOR
+  ENVIADA
+  APROBADA
+  RECHAZADA
+  PEDIDA
+  RECIBIDA_PARCIAL
+  RECIBIDA
+}
+
+model SolicitudMaterial {
+  id            String          @id @default(uuid())
+  obraId        String          @map("obra_id")
+  estado        EstadoSolicitud @default(BORRADOR)
+  proveedor     String?
+  costeTotal    Int             @default(0) @map("coste_total") // Céntimos
+  notas         String?
+  fechaEntregaPrevista DateTime? @map("fecha_entrega_prevista")
+
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+
+  obra          Obra            @relation(fields: [obraId], references: [id])
+  lineas        LineaMaterial[]
+
+  @@map("solicitudes_material")
+}
+
+model LineaMaterial {
+  id            String   @id @default(uuid())
+  solicitudId   String   @map("solicitud_id")
+  producto      String
+  cantidad      Int
+  costeUnitario Int      @default(0) @map("coste_unitario") // Céntimos
+  recibido      Int      @default(0)
+
+  solicitud     SolicitudMaterial @relation(fields: [solicitudId], references: [id], onDelete: Cascade)
+
+  @@map("lineas_material")
+}
+
+// ═══════════════════════════════════════════
+// ACTIVOS INSTALADOS (post-obra)
+// ═══════════════════════════════════════════
+
+model ActivoInstalado {
+  id            String    @id @default(uuid())
+  obraId        String    @map("obra_id")
+  clienteId     String?   @map("cliente_id") // Denormalizado para acceso rápido
+  tipo          String    // Panel, Inversor, Batería, Estructura, Aerotermia
+  marca         String?
+  modelo        String?
+  numeroSerie   String?   @map("numero_serie")
+  potencia      Float?    // kWp o kW según tipo
+  fechaInstalacion DateTime? @map("fecha_instalacion")
+  garantiaHasta DateTime? @map("garantia_hasta")
+  activo        Boolean   @default(true)
+
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  obra          Obra      @relation(fields: [obraId], references: [id])
+  mantenimientos Mantenimiento[]
+
+  @@map("activos_instalados")
+}
+
+// ═══════════════════════════════════════════
+// MANTENIMIENTO (cuelga de ACTIVO)
+// ═══════════════════════════════════════════
+
+enum EstadoMantenimiento {
+  PROGRAMADO
+  EN_CURSO
+  COMPLETADO
+  CANCELADO
+}
+
+model Mantenimiento {
+  id            String              @id @default(uuid())
+  activoId      String              @map("activo_id")
+  tipo          String              // Preventivo, Correctivo, Limpieza, Revisión
+  estado        EstadoMantenimiento @default(PROGRAMADO)
+  fechaProgramada DateTime?         @map("fecha_programada")
+  fechaRealizada  DateTime?         @map("fecha_realizada")
+  descripcion   String?
+  resultado     String?
+  coste         Int?                // Céntimos
+
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime            @updatedAt @map("updated_at")
+
+  activo        ActivoInstalado     @relation(fields: [activoId], references: [id])
+
+  @@map("mantenimientos")
+}
+
+// ═══════════════════════════════════════════
+// AUDITORÍA (ACTIVIDAD / TIMELINE)
+// ═══════════════════════════════════════════
+
+model Actividad {
+  id            String   @id @default(uuid())
+  obraId        String?  @map("obra_id")
+  usuarioId     String   @map("usuario_id")
+  accion        String   // ESTADO_CAMBIADO, PAGO_REGISTRADO, DOCUMENTO_SUBIDO, etc.
+  entidad       String   // obra, pago, incidencia, etc.
+  entidadId     String?  @map("entidad_id")
+  detalle       String?  // JSON con datos relevantes (antes/después)
+
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  obra          Obra?    @relation(fields: [obraId], references: [id])
+  usuario       Usuario  @relation(fields: [usuarioId], references: [id])
+
+  @@index([obraId, createdAt])
+  @@index([usuarioId, createdAt])
+  @@index([entidad, entidadId])
+  @@map("actividades")
+}
+
+// ═══════════════════════════════════════════
+// CATÁLOGOS (configuración del sistema)
+// ═══════════════════════════════════════════
+
+model Catalogo {
+  id        String   @id @default(uuid())
+  tipo      String   // ESTADO_OBRA, TIPO_INSTALACION, METODO_PAGO, etc.
+  codigo    String
+  nombre    String
+  orden     Int      @default(0)
+  activo    Boolean  @default(true)
+  metadata  String?  // JSON para datos extra (color, icono, etc.)
+
+  @@unique([tipo, codigo])
+  @@map("catalogos")
+}
