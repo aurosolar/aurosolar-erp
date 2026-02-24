@@ -25,7 +25,7 @@ export async function parseBody<T>(req: NextRequest, schema: ZodSchema<T>): Prom
 // ── Wrapper para API routes con auth + permisos + error handling ──
 type ApiHandler = (
   req: NextRequest,
-  context: { usuario: { id: string; email: string; nombre: string; apellidos: string; rol: Rol } }
+  context: { usuario: { id: string; email: string; nombre: string; apellidos: string; rol: Rol; clienteId?: string | null } }
 ) => Promise<NextResponse>;
 
 export function withAuth(permiso: string, handler: ApiHandler) {

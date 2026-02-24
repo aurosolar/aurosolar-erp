@@ -48,7 +48,7 @@ export async function getSession() {
 
   const usuario = await prisma.usuario.findUnique({
     where: { id: payload.userId },
-    select: { id: true, email: true, nombre: true, apellidos: true, rol: true, activo: true },
+    select: { id: true, email: true, nombre: true, apellidos: true, rol: true, activo: true, clienteId: true },
   });
 
   if (!usuario || !usuario.activo) return null;
@@ -92,10 +92,13 @@ const PERMISOS: Record<string, Permiso> = {
   'incidencias:crear':{ roles: ['ADMIN', 'DIRECCION', 'JEFE_INSTALACIONES', 'INSTALADOR'] },
   'incidencias:resolver': { roles: ['ADMIN', 'DIRECCION', 'JEFE_INSTALACIONES'] },
 
+  'usuarios:ver':       { roles: ['ADMIN'] },
   'usuarios:gestionar': { roles: ['ADMIN'] },
   'dashboard:ver':    { roles: ['ADMIN', 'DIRECCION'] },
   'legalizacion:ver': { roles: ['ADMIN', 'DIRECCION', 'ADMINISTRACION'] },
   'legalizacion:gestionar': { roles: ['ADMIN', 'DIRECCION', 'ADMINISTRACION'] },
+  'portal:ver':       { roles: ['CLIENTE'] },
+  'portal:soporte':   { roles: ['CLIENTE'] },
 
   'campo:checkin':    { roles: ['INSTALADOR', 'JEFE_INSTALACIONES'] },
   'campo:gastos':     { roles: ['INSTALADOR', 'JEFE_INSTALACIONES'] },
@@ -105,6 +108,16 @@ const PERMISOS: Record<string, Permiso> = {
   'crm:gestionar':    { roles: ['ADMIN', 'DIRECCION', 'COMERCIAL'] },
   'crm:crear':        { roles: ['ADMIN', 'DIRECCION', 'COMERCIAL'] },
   'crm:convertir':    { roles: ['ADMIN', 'DIRECCION', 'COMERCIAL'] },
+
+  'planificacion:ver':       { roles: ['ADMIN', 'DIRECCION', 'JEFE_INSTALACIONES'] },
+  'planificacion:gestionar': { roles: ['ADMIN', 'DIRECCION', 'JEFE_INSTALACIONES'] },
+
+  'materiales:ver':          { roles: ['ADMIN', 'DIRECCION', 'JEFE_INSTALACIONES'] },
+  'materiales:solicitar':    { roles: ['ADMIN', 'DIRECCION', 'JEFE_INSTALACIONES', 'INSTALADOR'] },
+  'materiales:aprobar':      { roles: ['ADMIN', 'DIRECCION'] },
+
+  'activos:ver':             { roles: ['ADMIN', 'DIRECCION', 'JEFE_INSTALACIONES', 'ADMINISTRACION'] },
+  'activos:gestionar':       { roles: ['ADMIN', 'DIRECCION', 'JEFE_INSTALACIONES'] },
 
   'config:ver':       { roles: ['ADMIN', 'DIRECCION'] },
 };

@@ -26,6 +26,7 @@ const NAV_ITEMS = [
     { href: '/incidencias', icon: '⚠️', text: 'Incidencias', roles: ['ADMIN','DIRECCION','JEFE_INSTALACIONES','ADMINISTRACION'] },
     { href: '/legalizacion', icon: '📋', text: 'Legalización', roles: ['ADMIN','DIRECCION','ADMINISTRACION'] },
     { href: '/materiales', icon: '📦', text: 'Material', roles: ['ADMIN','DIRECCION','JEFE_INSTALACIONES'] },
+    { href: '/activos', icon: '🔋', text: 'Activos', roles: ['ADMIN','DIRECCION','JEFE_INSTALACIONES','ADMINISTRACION'] },
   ]},
   { label: 'Análisis', items: [
     { href: '/rentabilidad', icon: '📈', text: 'Rentabilidad', roles: ['ADMIN','DIRECCION'] },
