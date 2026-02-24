@@ -94,6 +94,8 @@ const PERMISOS: Record<string, Permiso> = {
 
   'usuarios:gestionar': { roles: ['ADMIN'] },
   'dashboard:ver':    { roles: ['ADMIN', 'DIRECCION'] },
+  'legalizacion:ver': { roles: ['ADMIN', 'DIRECCION', 'ADMINISTRACION'] },
+  'legalizacion:gestionar': { roles: ['ADMIN', 'DIRECCION', 'ADMINISTRACION'] },
 
   'campo:checkin':    { roles: ['INSTALADOR', 'JEFE_INSTALACIONES'] },
   'campo:gastos':     { roles: ['INSTALADOR', 'JEFE_INSTALACIONES'] },
