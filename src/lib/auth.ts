@@ -92,10 +92,13 @@ const PERMISOS: Record<string, Permiso> = {
   'incidencias:crear':{ roles: ['ADMIN', 'DIRECCION', 'JEFE_INSTALACIONES', 'INSTALADOR'] },
   'incidencias:resolver': { roles: ['ADMIN', 'DIRECCION', 'JEFE_INSTALACIONES'] },
 
+  'usuarios:ver':       { roles: ['ADMIN'] },
   'usuarios:gestionar': { roles: ['ADMIN'] },
   'dashboard:ver':    { roles: ['ADMIN', 'DIRECCION'] },
   'legalizacion:ver': { roles: ['ADMIN', 'DIRECCION', 'ADMINISTRACION'] },
   'legalizacion:gestionar': { roles: ['ADMIN', 'DIRECCION', 'ADMINISTRACION'] },
+  'portal:ver':       { roles: ['CLIENTE'] },
+  'portal:soporte':   { roles: ['CLIENTE'] },
 
   'campo:checkin':    { roles: ['INSTALADOR', 'JEFE_INSTALACIONES'] },
   'campo:gastos':     { roles: ['INSTALADOR', 'JEFE_INSTALACIONES'] },

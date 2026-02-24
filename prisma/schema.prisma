@@ -23,6 +23,7 @@ enum Rol {
   JEFE_INSTALACIONES
   INSTALADOR
   ADMINISTRACION
+  CLIENTE
 }
 
 model Usuario {
@@ -37,6 +38,7 @@ model Usuario {
   avatarUrl     String?   @map("avatar_url")
   zona          String?   // Para comerciales
   objetivoMensual Int?    @map("objetivo_mensual") // Céntimos, para comerciales
+  clienteId     String?  @map("cliente_id") // Para rol CLIENTE: enlace con su ficha
 
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
@@ -387,6 +389,8 @@ model Documento {
   mimeType      String?       @map("mime_type")
   tamanoBytes   Int?          @map("tamano_bytes")
   estado        String        @default("ACTIVO") // ACTIVO, APROBADO, RECHAZADO
+  visible       Boolean       @default(false) // Visible en portal cliente
+  url           String?       // URL pública o enlace de descarga
 
   subidoPorId   String        @map("subido_por_id")
 
@@ -498,8 +502,9 @@ model Incidencia {
   fotoUrl       String?          @map("foto_url")
   notasResolucion String?        @map("notas_resolucion")
 
-  creadoPorId   String           @map("creado_por_id")
+  creadoPorId   String?          @map("creado_por_id")
   asignadoAId   String?          @map("asignado_a_id")
+  origenPortal  Boolean          @default(false) @map("origen_portal")
 
   fechaResolucion DateTime?      @map("fecha_resolucion")
 
