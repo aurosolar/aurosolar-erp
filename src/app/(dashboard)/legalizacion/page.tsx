@@ -1,166 +1,194 @@
 // src/app/(dashboard)/legalizacion/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
-interface ObraLegal {
-  id: string;
-  codigo: string;
-  estado: string;
-  estadoLegalizacion: string | null;
-  expedienteLegal: string | null;
-  updatedAt: string;
-  cliente: { nombre: string; apellidos: string };
+interface LegItem {
+  id: string; codigo: string; cliente: string; tipo: string;
+  estadoLegal: string; expediente: string | null; localidad: string | null;
+  potencia: number | null; diasEnEstado: number; alerta: boolean; updatedAt: string;
 }
 
-const ESTADOS_LEGAL = [
-  { value: 'PENDIENTE', label: 'Pendiente', icon: '⏳', color: 'bg-estado-amber/10 text-estado-amber border-estado-amber/20' },
-  { value: 'SOLICITADA', label: 'Solicitada', icon: '📤', color: 'bg-estado-blue/10 text-estado-blue border-estado-blue/20' },
-  { value: 'EN_TRAMITE', label: 'En trámite', icon: '⚙️', color: 'bg-estado-purple/10 text-estado-purple border-estado-purple/20' },
-  { value: 'APROBADA', label: 'Aprobada', icon: '✅', color: 'bg-estado-green/10 text-estado-green border-estado-green/20' },
-  { value: 'INSCRITA', label: 'Inscrita', icon: '🏆', color: 'bg-estado-green/10 text-estado-green border-estado-green/20' },
-];
+const ESTADOS_LEGAL: Record<string, { label: string; color: string; icon: string; step: number }> = {
+  PENDIENTE: { label: 'Pendiente', color: 'bg-auro-navy/10 text-auro-navy/60', icon: '⏳', step: 0 },
+  SOLICITADA: { label: 'Solicitada', color: 'bg-estado-blue/10 text-estado-blue', icon: '📤', step: 1 },
+  EN_TRAMITE: { label: 'En trámite', color: 'bg-auro-orange/10 text-auro-orange', icon: '⚙️', step: 2 },
+  APROBADA: { label: 'Aprobada', color: 'bg-estado-green/10 text-estado-green', icon: '✅', step: 3 },
+  INSCRITA: { label: 'Inscrita', color: 'bg-estado-green/10 text-estado-green', icon: '🏛️', step: 4 },
+};
+
+const SIGUIENTE: Record<string, { estado: string; label: string }> = {
+  PENDIENTE: { estado: 'SOLICITADA', label: '📤 Solicitar' },
+  SOLICITADA: { estado: 'EN_TRAMITE', label: '⚙️ Marcar en trámite' },
+  EN_TRAMITE: { estado: 'APROBADA', label: '✅ Aprobar' },
+  APROBADA: { estado: 'INSCRITA', label: '🏛️ Inscribir' },
+};
 
 export default function LegalizacionPage() {
-  const [obras, setObras] = useState<ObraLegal[]>([]);
+  const [items, setItems] = useState<LegItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editando, setEditando] = useState<ObraLegal | null>(null);
-  const [nuevoEstadoLegal, setNuevoEstadoLegal] = useState('');
+  const [filtro, setFiltro] = useState('');
+  const [detalle, setDetalle] = useState<LegItem | null>(null);
   const [expediente, setExpediente] = useState('');
-  const [guardando, setGuardando] = useState(false);
+  const [notas, setNotas] = useState('');
 
-  useEffect(() => { cargar(); }, []);
-
-  async function cargar() {
+  const cargar = useCallback(async () => {
     setLoading(true);
-    const res = await fetch('/api/legalizacion');
+    const params = filtro ? `?estado=${filtro}` : '';
+    const res = await fetch(`/api/legalizacion${params}`);
     const data = await res.json();
-    if (data.ok) setObras(data.data);
+    if (data.ok) setItems(data.data);
     setLoading(false);
-  }
+  }, [filtro]);
 
-  async function guardar() {
-    if (!editando) return;
-    setGuardando(true);
-    const res = await fetch(`/api/legalizacion/${editando.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ estadoLegal: nuevoEstadoLegal, expediente: expediente || undefined }),
+  useEffect(() => { cargar(); }, [cargar]);
+
+  async function avanzar(item: LegItem) {
+    const sig = SIGUIENTE[item.estadoLegal];
+    if (!sig) return;
+    await fetch('/api/legalizacion', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        obraId: item.id, estado: sig.estado,
+        expediente: expediente || undefined,
+        notas: notas || undefined,
+      }),
     });
-    if ((await res.json()).ok) {
-      setEditando(null);
-      cargar();
-    }
-    setGuardando(false);
+    setDetalle(null); setExpediente(''); setNotas('');
+    cargar();
   }
 
-  function abrirEditar(obra: ObraLegal) {
-    setEditando(obra);
-    setNuevoEstadoLegal(obra.estadoLegalizacion || 'PENDIENTE');
-    setExpediente(obra.expedienteLegal || '');
-  }
+  const alertas = items.filter(i => i.alerta).length;
 
   return (
     <div>
-      <h2 className="text-xl font-bold text-auro-navy mb-5">Legalización</h2>
-
-      {/* Resumen por estado legal */}
-      <div className="flex gap-2 overflow-x-auto pb-2 mb-4">
-        {ESTADOS_LEGAL.map((e) => {
-          const count = obras.filter(o => (o.estadoLegalizacion || 'PENDIENTE') === e.value).length;
-          return (
-            <div key={e.value} className={`shrink-0 rounded-xl border px-4 py-2.5 text-center min-w-[90px] ${e.color}`}>
-              <div className="text-xl font-extrabold">{count}</div>
-              <div className="text-[10px] font-bold">{e.icon} {e.label}</div>
-            </div>
-          );
-        })}
+      <div className="flex items-center justify-between mb-5">
+        <h2 className="text-xl font-bold text-auro-navy">Legalización</h2>
+        {alertas > 0 && (
+          <span className="px-3 py-1 bg-estado-red/10 text-estado-red text-xs font-bold rounded-full animate-pulse">
+            🚨 {alertas} estancada{alertas > 1 ? 's' : ''} (&gt;30d)
+          </span>
+        )}
       </div>
 
+      {/* KPIs */}
+      <div className="grid grid-cols-4 gap-3 mb-5">
+        {[
+          { label: 'Pendientes', val: items.filter(i => i.estadoLegal === 'PENDIENTE').length, icon: '⏳', color: 'text-auro-navy/60' },
+          { label: 'Solicitadas', val: items.filter(i => i.estadoLegal === 'SOLICITADA').length, icon: '📤', color: 'text-estado-blue' },
+          { label: 'En trámite', val: items.filter(i => i.estadoLegal === 'EN_TRAMITE').length, icon: '⚙️', color: 'text-auro-orange' },
+          { label: 'Inscritas', val: items.filter(i => i.estadoLegal === 'INSCRITA').length, icon: '🏛️', color: 'text-estado-green' },
+        ].map(k => (
+          <div key={k.label} className="bg-white rounded-card border border-auro-border p-3 text-center">
+            <div className="text-lg">{k.icon}</div>
+            <div className={`text-xl font-extrabold ${k.color}`}>{k.val}</div>
+            <div className="text-[9px] text-auro-navy/30 font-semibold uppercase">{k.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Filtros */}
+      <div className="flex gap-1.5 mb-4 overflow-x-auto pb-1">
+        {[{ key: '', label: 'Todas' }, ...Object.entries(ESTADOS_LEGAL).map(([key, cfg]) => ({ key, label: cfg.label }))].map(f => (
+          <button key={f.key} onClick={() => setFiltro(f.key)}
+            className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${filtro === f.key ? 'bg-auro-orange text-white' : 'bg-auro-surface-2 text-auro-navy/50'}`}>
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Lista */}
       {loading ? (
-        <div className="bg-white rounded-card border border-auro-border p-12 text-center">
-          <div className="w-8 h-8 border-3 border-auro-orange/20 border-t-auro-orange rounded-full animate-spin mx-auto" />
-        </div>
-      ) : obras.length === 0 ? (
-        <div className="bg-white rounded-card border border-auro-border p-12 text-center">
-          <div className="text-4xl mb-3">📋</div>
-          <p className="text-sm text-auro-navy/50">Sin obras en legalización</p>
-        </div>
+        <div className="flex justify-center py-12"><div className="w-8 h-8 border-3 border-auro-orange/20 border-t-auro-orange rounded-full animate-spin" /></div>
+      ) : items.length === 0 ? (
+        <div className="text-center py-12 text-auro-navy/30 text-sm">No hay obras en legalización</div>
       ) : (
-        <div className="bg-white rounded-card border border-auro-border overflow-hidden shadow-sm">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-auro-surface-2">
-                {['Código', 'Cliente', 'Estado legal', 'Expediente', 'Días en estado', ''].map(h => (
-                  <th key={h} className="text-left text-[10px] font-bold uppercase tracking-wider text-auro-navy/30 px-4 py-3 border-b border-auro-border">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {obras.map((obra) => {
-                const dias = Math.floor((Date.now() - new Date(obra.updatedAt).getTime()) / 86400000);
-                const estLegal = obra.estadoLegalizacion || 'PENDIENTE';
-                const cfg = ESTADOS_LEGAL.find(e => e.value === estLegal) || ESTADOS_LEGAL[0];
-                return (
-                  <tr key={obra.id} className="border-b border-auro-border last:border-0 hover:bg-auro-surface-2/50">
-                    <td className="px-4 py-3 text-xs font-bold text-auro-orange">{obra.codigo}</td>
-                    <td className="px-4 py-3 text-sm font-semibold">{obra.cliente.nombre} {obra.cliente.apellidos}</td>
-                    <td className="px-4 py-3">
-                      <span className={`text-[10px] font-semibold px-2.5 py-1 rounded-full ${cfg.color}`}>
-                        {cfg.icon} {cfg.label}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-auro-navy/50 font-mono">{obra.expedienteLegal || '—'}</td>
-                    <td className="px-4 py-3">
-                      <span className={`text-xs font-bold ${dias >= 30 ? 'text-estado-red' : dias >= 15 ? 'text-estado-amber' : 'text-auro-navy/40'}`}>
-                        {dias}d
-                      </span>
-                      {dias >= 30 && <span className="ml-1 text-[9px] text-estado-red">⚠️</span>}
-                    </td>
-                    <td className="px-4 py-3">
-                      <button onClick={() => abrirEditar(obra)} className="h-7 px-2.5 rounded-lg text-[10px] font-semibold bg-estado-blue/10 text-estado-blue hover:bg-estado-blue hover:text-white transition-colors">
-                        Actualizar
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="space-y-2">
+          {items.map(item => {
+            const est = ESTADOS_LEGAL[item.estadoLegal] || ESTADOS_LEGAL.PENDIENTE;
+            return (
+              <div key={item.id} onClick={() => { setDetalle(item); setExpediente(item.expediente || ''); }}
+                className={`bg-white rounded-card border p-4 cursor-pointer transition-colors hover:border-auro-orange/30 ${item.alerta ? 'border-estado-red/40 bg-estado-red/[0.02]' : 'border-auro-border'}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-auro-navy">{item.codigo}</span>
+                    <span className="text-xs text-auro-navy/40">· {item.cliente}</span>
+                  </div>
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${est.color}`}>
+                    {est.icon} {est.label}
+                  </span>
+                </div>
+                <div className="flex gap-1 mb-2">
+                  {[0, 1, 2, 3, 4].map(step => (
+                    <div key={step} className={`h-1.5 flex-1 rounded-full ${step <= est.step ? 'bg-estado-green' : 'bg-auro-surface-2'}`} />
+                  ))}
+                </div>
+                <div className="flex items-center justify-between text-xs text-auro-navy/40">
+                  <div className="flex gap-3">
+                    {item.localidad && <span>📍 {item.localidad}</span>}
+                    {item.expediente && <span>📋 {item.expediente}</span>}
+                  </div>
+                  <span className={`font-semibold ${item.alerta ? 'text-estado-red' : ''}`}>
+                    {item.diasEnEstado}d en estado {item.alerta && '🚨'}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
-      {/* Modal editar estado legal */}
-      {editando && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4" onClick={() => setEditando(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5" onClick={e => e.stopPropagation()}>
-            <h3 className="text-base font-bold mb-1">Actualizar legalización</h3>
-            <p className="text-xs text-auro-navy/40 mb-4">{editando.codigo} · {editando.cliente.nombre}</p>
+      {/* Modal detalle */}
+      {detalle && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center" onClick={() => setDetalle(null)}>
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="p-5">
+              <h3 className="text-base font-bold mb-1">{detalle.codigo}</h3>
+              <p className="text-xs text-auro-navy/40 mb-4">{detalle.cliente} · {detalle.localidad}</p>
 
-            <div className="mb-4">
-              <label className="block text-[10px] font-bold text-auro-navy/30 uppercase tracking-wider mb-1.5">Estado legal</label>
-              <div className="space-y-1.5">
-                {ESTADOS_LEGAL.map((e) => (
-                  <button
-                    key={e.value}
-                    onClick={() => setNuevoEstadoLegal(e.value)}
-                    className={`w-full h-10 px-3 rounded-xl border-2 text-sm font-semibold flex items-center gap-2 transition-all
-                      ${nuevoEstadoLegal === e.value ? `${e.color}` : 'border-auro-border bg-white text-auro-navy/50'}`}
-                  >
-                    <span>{e.icon}</span> {e.label}
-                  </button>
-                ))}
+              {/* Timeline */}
+              <div className="mb-4">
+                <div className="text-[10px] font-bold text-auro-navy/30 uppercase mb-2">Progreso</div>
+                <div className="space-y-2">
+                  {Object.entries(ESTADOS_LEGAL).map(([key, cfg]) => {
+                    const currentStep = ESTADOS_LEGAL[detalle.estadoLegal]?.step || 0;
+                    const done = cfg.step <= currentStep;
+                    const active = cfg.step === currentStep;
+                    return (
+                      <div key={key} className={`flex items-center gap-3 p-2 rounded-xl ${active ? 'bg-auro-orange/5 border border-auro-orange/20' : ''}`}>
+                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                          done ? 'bg-estado-green text-white' : 'bg-auro-surface-2 text-auro-navy/25'
+                        }`}>{done ? '✓' : cfg.step + 1}</div>
+                        <span className={`text-xs font-semibold ${active ? 'text-auro-navy' : done ? 'text-estado-green' : 'text-auro-navy/25'}`}>
+                          {cfg.icon} {cfg.label}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
 
-            <div className="mb-4">
-              <label className="block text-[10px] font-bold text-auro-navy/30 uppercase tracking-wider mb-1.5">Nº expediente</label>
-              <input value={expediente} onChange={e => setExpediente(e.target.value)} placeholder="EXP-2026-..." className="w-full h-10 px-3 bg-auro-surface-2 border border-auro-border rounded-input text-sm font-mono focus:outline-none focus:border-auro-orange/40" />
-            </div>
+              <div className="mb-3">
+                <label className="block text-[10px] font-bold text-auro-navy/30 uppercase mb-1">Nº Expediente</label>
+                <input value={expediente} onChange={e => setExpediente(e.target.value)} placeholder="Ej: EX-2026/1234"
+                  className="w-full h-10 px-3 bg-auro-surface-2 border border-auro-border rounded-input text-sm focus:outline-none focus:border-auro-orange/40" />
+              </div>
 
-            <button onClick={guardar} disabled={guardando} className="w-full h-10 bg-auro-orange hover:bg-auro-orange-dark text-white font-bold rounded-button text-sm disabled:opacity-50 transition-colors">
-              {guardando ? 'Guardando...' : 'Guardar cambios'}
-            </button>
+              <div className="mb-4">
+                <label className="block text-[10px] font-bold text-auro-navy/30 uppercase mb-1">Notas</label>
+                <textarea value={notas} onChange={e => setNotas(e.target.value)} rows={2} placeholder="Notas del cambio..."
+                  className="w-full px-3 py-2 bg-auro-surface-2 border border-auro-border rounded-input text-sm resize-none focus:outline-none focus:border-auro-orange/40" />
+              </div>
+
+              {SIGUIENTE[detalle.estadoLegal] ? (
+                <button onClick={() => avanzar(detalle)}
+                  className="w-full h-11 bg-auro-orange hover:bg-auro-orange-dark text-white font-bold rounded-button text-sm transition-colors">
+                  {SIGUIENTE[detalle.estadoLegal].label}
+                </button>
+              ) : (
+                <div className="text-center py-3 text-estado-green text-sm font-bold">🏛️ Legalización completada</div>
+              )}
+            </div>
           </div>
         </div>
       )}
