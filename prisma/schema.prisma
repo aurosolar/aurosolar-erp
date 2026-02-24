@@ -512,7 +512,7 @@ model Incidencia {
   updatedAt     DateTime         @updatedAt @map("updated_at")
 
   obra          Obra             @relation(fields: [obraId], references: [id])
-  creadoPor     Usuario?         @relation("IncidenciaCreador", fields: [creadoPorId], references: [id])
+  creadoPor     Usuario          @relation("IncidenciaCreador", fields: [creadoPorId], references: [id])
   asignadoA     Usuario?         @relation("IncidenciaAsignado", fields: [asignadoAId], references: [id])
 
   @@map("incidencias")
