@@ -11,7 +11,7 @@ const visitaSchema = z.object({
 });
 
 export const POST = withAuth('crm:crear', async (req, { usuario }) => {
-  const input = await parseBody(req, visitaSchema);
+  const body = await req.json(); const input = { leadId: body.leadId, fecha: new Date(body.fecha), resultado: body.resultado, notas: body.notas };
   const visita = await crmService.registrarVisita(input, usuario.id);
   return apiOk(visita, 201);
 });
