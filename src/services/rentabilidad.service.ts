@@ -13,7 +13,7 @@ export async function rentabilidadObras(filtros?: { desde?: Date; hasta?: Date }
     where,
     include: {
       cliente: { select: { nombre: true, apellidos: true } },
-      pagos: { select: { importe: true, verificado: true } },
+      pagos: { select: { importe: true } },
       solicitudesMaterial: {
         where: { estado: { notIn: ['RECHAZADA', 'BORRADOR'] } },
         include: { lineas: true },
@@ -24,7 +24,7 @@ export async function rentabilidadObras(filtros?: { desde?: Date; hasta?: Date }
 
   return obras.map(obra => {
     const presupuesto = obra.presupuestoTotal || 0;
-    const cobrado = obra.pagos.filter(p => p.verificado).reduce((s, p) => s + p.importe, 0);
+    const cobrado = obra.pagos.reduce((s, p) => s + p.importe, 0);
     const pendiente = presupuesto - cobrado;
     const costeMaterial = obra.solicitudesMaterial.reduce((s, sol) =>
       s + sol.lineas.reduce((ls, l) => ls + l.cantidad * l.costeUnitario, 0), 0);
