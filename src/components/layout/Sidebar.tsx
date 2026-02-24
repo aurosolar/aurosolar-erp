@@ -17,6 +17,7 @@ interface Props {
 const NAV_ITEMS = [
   { label: 'General', items: [
     { href: '/dashboard', icon: '📊', text: 'Dashboard', roles: ['ADMIN','DIRECCION'] },
+    { href: '/crm', icon: '📞', text: 'CRM', roles: ['ADMIN','DIRECCION','COMERCIAL'] },
     { href: '/obras', icon: '🏗️', text: 'Obras', roles: ['ADMIN','DIRECCION','JEFE_INSTALACIONES','COMERCIAL','ADMINISTRACION'] },
     { href: '/cobros', icon: '💰', text: 'Cobros', roles: ['ADMIN','DIRECCION','ADMINISTRACION'] },
   ]},

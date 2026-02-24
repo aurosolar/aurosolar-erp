@@ -103,6 +103,8 @@ const PERMISOS: Record<string, Permiso> = {
 
   'crm:ver':          { roles: ['ADMIN', 'DIRECCION', 'COMERCIAL'] },
   'crm:gestionar':    { roles: ['ADMIN', 'DIRECCION', 'COMERCIAL'] },
+  'crm:crear':        { roles: ['ADMIN', 'DIRECCION', 'COMERCIAL'] },
+  'crm:convertir':    { roles: ['ADMIN', 'DIRECCION', 'COMERCIAL'] },
 
   'config:ver':       { roles: ['ADMIN', 'DIRECCION'] },
 };
