@@ -1,7 +1,7 @@
 // src/components/obras/ObraCard.tsx
 'use client';
 
-import { ESTADOS_CONFIG } from '@/app/(dashboard)/obras/page';
+const ESTADOS_CONFIG: Record<string, { label: string; color: string; bg: string; dot: string }> = { REVISION_TECNICA: { label: 'Revisión técnica', color: 'text-estado-purple', bg: 'bg-estado-purple/10', dot: 'bg-estado-purple' }, PREPARANDO: { label: 'Preparando', color: 'text-estado-amber', bg: 'bg-estado-amber/10', dot: 'bg-estado-amber' }, PROGRAMADA: { label: 'Programada', color: 'text-estado-blue', bg: 'bg-estado-blue/10', dot: 'bg-estado-blue' }, INSTALANDO: { label: 'Instalando', color: 'text-auro-orange', bg: 'bg-auro-orange/10', dot: 'bg-auro-orange' }, TERMINADA: { label: 'Terminada', color: 'text-estado-green', bg: 'bg-estado-green/10', dot: 'bg-estado-green' }, INCIDENCIA: { label: 'Incidencia', color: 'text-estado-red', bg: 'bg-estado-red/10', dot: 'bg-estado-red' }, LEGALIZACION: { label: 'Legalización', color: 'text-estado-blue', bg: 'bg-estado-blue/10', dot: 'bg-estado-blue' }, LEGALIZADA: { label: 'Legalizada', color: 'text-estado-green', bg: 'bg-estado-green/10', dot: 'bg-estado-green' }, COMPLETADA: { label: 'Completada', color: 'text-estado-green', bg: 'bg-estado-green/10', dot: 'bg-estado-green' }, CANCELADA: { label: 'Cancelada', color: 'text-auro-navy/30', bg: 'bg-auro-navy/5', dot: 'bg-auro-navy/30' } };
 
 interface Props {
   obra: {
