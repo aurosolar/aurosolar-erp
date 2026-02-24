@@ -27,6 +27,7 @@ const NAV_ITEMS = [
     { href: '/legalizacion', icon: '📋', text: 'Legalización', roles: ['ADMIN','DIRECCION','ADMINISTRACION'] },
     { href: '/materiales', icon: '📦', text: 'Material', roles: ['ADMIN','DIRECCION','JEFE_INSTALACIONES'] },
     { href: '/activos', icon: '🔋', text: 'Activos', roles: ['ADMIN','DIRECCION','JEFE_INSTALACIONES','ADMINISTRACION'] },
+    { href: '/clientes', icon: '👥', text: 'Clientes', roles: ['ADMIN','DIRECCION','JEFE_INSTALACIONES','ADMINISTRACION','COMERCIAL'] },
     { href: '/documentos', icon: '📁', text: 'Documentos', roles: ['ADMIN','DIRECCION','JEFE_INSTALACIONES','ADMINISTRACION'] },
   ]},
   { label: 'Análisis', items: [
