@@ -119,7 +119,7 @@ const PERMISOS: Record<string, Permiso> = {
   'activos:ver':             { roles: ['ADMIN', 'DIRECCION', 'JEFE_INSTALACIONES', 'ADMINISTRACION'] },
   'activos:gestionar':       { roles: ['ADMIN', 'DIRECCION', 'JEFE_INSTALACIONES'] },
 
-  'config:ver':       { roles: ['ADMIN', 'DIRECCION'] },
+  'config:ver':              { roles: ['ADMIN', 'DIRECCION'] },
 };
 
 export function tienePermiso(rol: Rol, permiso: string): boolean {
