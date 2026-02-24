@@ -36,6 +36,7 @@ const NAV_ITEMS = [
   ]},
   { label: 'Sistema', items: [
     { href: '/usuarios', icon: '👥', text: 'Usuarios', roles: ['ADMIN'] },
+    { href: '/auditoria', icon: '📜', text: 'Auditoría', roles: ['ADMIN','DIRECCION'] },
     { href: '/configuracion', icon: '⚙️', text: 'Configuración', roles: ['ADMIN','DIRECCION'] },
   ]},
 ];
