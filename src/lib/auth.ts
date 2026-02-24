@@ -48,7 +48,7 @@ export async function getSession() {
 
   const usuario = await prisma.usuario.findUnique({
     where: { id: payload.userId },
-    select: { id: true, email: true, nombre: true, apellidos: true, rol: true, activo: true },
+    select: { id: true, email: true, nombre: true, apellidos: true, rol: true, activo: true, clienteId: true },
   });
 
   if (!usuario || !usuario.activo) return null;
