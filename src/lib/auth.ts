@@ -109,6 +109,13 @@ const PERMISOS: Record<string, Permiso> = {
   'crm:crear':        { roles: ['ADMIN', 'DIRECCION', 'COMERCIAL'] },
   'crm:convertir':    { roles: ['ADMIN', 'DIRECCION', 'COMERCIAL'] },
 
+  'planificacion:ver':       { roles: ['ADMIN', 'DIRECCION', 'JEFE_INSTALACIONES'] },
+  'planificacion:gestionar': { roles: ['ADMIN', 'DIRECCION', 'JEFE_INSTALACIONES'] },
+
+  'materiales:ver':          { roles: ['ADMIN', 'DIRECCION', 'JEFE_INSTALACIONES'] },
+  'materiales:solicitar':    { roles: ['ADMIN', 'DIRECCION', 'JEFE_INSTALACIONES', 'INSTALADOR'] },
+  'materiales:aprobar':      { roles: ['ADMIN', 'DIRECCION'] },
+
   'config:ver':       { roles: ['ADMIN', 'DIRECCION'] },
 };
 
