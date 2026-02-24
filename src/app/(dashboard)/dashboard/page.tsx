@@ -13,14 +13,25 @@ interface DashboardData {
     instalandoHoy: number;
     margen: number;
   };
-  alertas: Array<{ tipo: string; icon: string; label: string; color: string; conteo: number }>;
+  alertas: Array<{ tipo: string; icon: string; label: string; color: string; conteo: number; href: string }>;
   grafico: Array<{ mes: string; presupuestado: number; cobrado: number; esFuturo: boolean }>;
   incidencias: Array<{
     id: string; gravedad: string; estado: string; descripcion: string; createdAt: string;
     obra: { codigo: string }; creadoPor: { nombre: string };
   }>;
   contadores: Record<string, number>;
+  actividad: Array<{
+    id: string; accion: string; entidad: string; createdAt: string;
+    usuario: { nombre: string }; obra: { codigo: string } | null;
+  }>;
+  ranking: Array<{ nombre: string; obras: number; volumen: number }>;
 }
+
+const ICONOS_ACCION: Record<string, string> = {
+  ESTADO_CAMBIADO: '🔄', PAGO_REGISTRADO: '💰', DOCUMENTO_SUBIDO: '📤',
+  INCIDENCIA_CREADA: '⚠️', OBRA_CREADA: '🏗️', LEAD_CREADO: '📊',
+  LEAD_CONVERTIDO: '🎯', CHECKIN: '📍', SUBVENCION_CREADA: '🏛️',
+};
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
@@ -38,17 +49,19 @@ export default function DashboardPage() {
     return `${(c / 100).toLocaleString('es-ES', { maximumFractionDigits: 0 })}€`;
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <div className="w-10 h-10 border-4 border-auro-orange/20 border-t-auro-orange rounded-full animate-spin" />
-      </div>
-    );
-  }
+  const tiempoRel = (f: string) => {
+    const min = Math.floor((Date.now() - new Date(f).getTime()) / 60000);
+    if (min < 1) return 'Ahora';
+    if (min < 60) return `${min}m`;
+    const h = Math.floor(min / 60);
+    if (h < 24) return `${h}h`;
+    return `${Math.floor(h / 24)}d`;
+  };
 
+  if (loading) return <div className="flex items-center justify-center py-24"><div className="w-10 h-10 border-4 border-auro-orange/20 border-t-auro-orange rounded-full animate-spin" /></div>;
   if (!data) return <p className="text-center text-auro-navy/40 py-12">Error cargando dashboard</p>;
 
-  const { kpis, alertas, grafico, incidencias, contadores } = data;
+  const { kpis, alertas, grafico, incidencias, contadores, actividad, ranking } = data;
   const maxGrafico = Math.max(...grafico.map(m => Math.max(m.presupuestado, m.cobrado)), 1);
 
   return (
@@ -57,9 +70,14 @@ export default function DashboardPage() {
       {alertas.length > 0 && (
         <div className="flex gap-2 overflow-x-auto pb-2 mb-4 scrollbar-hide">
           {alertas.map((a) => (
-            <div key={a.tipo} className={`shrink-0 h-8 px-3 rounded-full text-xs font-semibold flex items-center gap-1.5 border ${a.color === 'red' ? 'bg-estado-red/10 text-estado-red border-estado-red/20' : 'bg-estado-amber/10 text-estado-amber border-estado-amber/20'}`}>
+            <Link key={a.tipo} href={a.href}
+              className={`shrink-0 h-8 px-3 rounded-full text-xs font-semibold flex items-center gap-1.5 border transition-all hover:scale-105 ${
+                a.color === 'red' ? 'bg-estado-red/10 text-estado-red border-estado-red/20' :
+                a.color === 'blue' ? 'bg-estado-blue/10 text-estado-blue border-estado-blue/20' :
+                'bg-estado-amber/10 text-estado-amber border-estado-amber/20'
+              }`}>
               <span>{a.icon}</span> {a.label} <span className="font-extrabold">{a.conteo}</span>
-            </div>
+            </Link>
           ))}
         </div>
       )}
@@ -141,33 +159,83 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Gráfico facturación (CSS puro) */}
-      <div className="bg-white rounded-card border border-auro-border shadow-sm overflow-hidden">
-        <div className="px-4 py-3 border-b border-auro-border flex items-center gap-2">
-          <span className="w-8 h-8 rounded-lg bg-auro-navy/5 flex items-center justify-center text-sm">📈</span>
-          <span className="text-[13px] font-bold flex-1">Facturación {new Date().getFullYear()}</span>
-          <div className="flex items-center gap-4 text-[10px] font-medium text-auro-navy/40">
-            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-auro-orange/30" /> Presupuestado</span>
-            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-auro-orange" /> Cobrado</span>
+      {/* Gráfico + Actividad + Ranking */}
+      <div className="grid lg:grid-cols-[1fr_340px] gap-4">
+        {/* Gráfico facturación */}
+        <div className="bg-white rounded-card border border-auro-border shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-auro-border flex items-center gap-2">
+            <span className="w-8 h-8 rounded-lg bg-auro-navy/5 flex items-center justify-center text-sm">📈</span>
+            <span className="text-[13px] font-bold flex-1">Facturación {new Date().getFullYear()}</span>
+            <div className="flex items-center gap-4 text-[10px] font-medium text-auro-navy/40">
+              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-auro-orange/30" /> Presup.</span>
+              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-auro-orange" /> Cobrado</span>
+            </div>
+          </div>
+          <div className="p-4">
+            <div className="flex items-end gap-1.5 h-40">
+              {grafico.map((m, i) => {
+                const hPres = maxGrafico > 0 ? (m.presupuestado / maxGrafico) * 100 : 0;
+                const hCob = maxGrafico > 0 ? (m.cobrado / maxGrafico) * 100 : 0;
+                const esMesActual = i === new Date().getMonth();
+                return (
+                  <div key={m.mes} className={`flex-1 flex flex-col items-center gap-1 ${m.esFuturo ? 'opacity-25' : ''}`}>
+                    <div className="w-full flex items-end justify-center gap-[2px] h-32">
+                      <div className="w-[40%] rounded-t-sm bg-auro-orange/20 transition-all" style={{ height: `${hPres}%`, minHeight: m.presupuestado > 0 ? '4px' : '0' }} />
+                      <div className={`w-[40%] rounded-t-sm transition-all ${esMesActual ? 'bg-auro-orange shadow-sm shadow-auro-orange/30' : 'bg-auro-orange/70'}`} style={{ height: `${hCob}%`, minHeight: m.cobrado > 0 ? '4px' : '0' }} />
+                    </div>
+                    <span className={`text-[9px] font-bold uppercase ${esMesActual ? 'text-auro-orange' : 'text-auro-navy/25'}`}>{m.mes}</span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
-        <div className="p-4">
-          <div className="flex items-end gap-1.5 h-40">
-            {grafico.map((m, i) => {
-              const hPres = maxGrafico > 0 ? (m.presupuestado / maxGrafico) * 100 : 0;
-              const hCob = maxGrafico > 0 ? (m.cobrado / maxGrafico) * 100 : 0;
-              const esMesActual = i === new Date().getMonth();
-              return (
-                <div key={m.mes} className={`flex-1 flex flex-col items-center gap-1 ${m.esFuturo ? 'opacity-25' : ''}`}>
-                  <div className="w-full flex items-end justify-center gap-[2px] h-32">
-                    <div className="w-[40%] rounded-t-sm bg-auro-orange/20 transition-all" style={{ height: `${hPres}%`, minHeight: m.presupuestado > 0 ? '4px' : '0' }} />
-                    <div className={`w-[40%] rounded-t-sm transition-all ${esMesActual ? 'bg-auro-orange shadow-sm shadow-auro-orange/30' : 'bg-auro-orange/70'}`} style={{ height: `${hCob}%`, minHeight: m.cobrado > 0 ? '4px' : '0' }} />
+
+        {/* Actividad reciente + Ranking */}
+        <div className="space-y-4">
+          {/* Actividad reciente */}
+          <div className="bg-white rounded-card border border-auro-border shadow-sm overflow-hidden">
+            <div className="px-4 py-3 border-b border-auro-border flex items-center gap-2">
+              <span className="w-8 h-8 rounded-lg bg-auro-navy/5 flex items-center justify-center text-sm">🕐</span>
+              <span className="text-[13px] font-bold flex-1">Actividad reciente</span>
+              <Link href="/auditoria" className="text-xs font-semibold text-auro-orange hover:underline">Ver →</Link>
+            </div>
+            <div className="divide-y divide-auro-border">
+              {actividad.slice(0, 6).map(a => (
+                <div key={a.id} className="px-4 py-2 flex items-center gap-2">
+                  <span className="text-sm">{ICONOS_ACCION[a.accion] || '📋'}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[11px] font-semibold truncate">{a.accion.replace(/_/g, ' ').toLowerCase()}</div>
+                    <div className="text-[10px] text-auro-navy/30 truncate">{a.usuario.nombre}{a.obra ? ` · ${a.obra.codigo}` : ''}</div>
                   </div>
-                  <span className={`text-[9px] font-bold uppercase ${esMesActual ? 'text-auro-orange' : 'text-auro-navy/25'}`}>{m.mes}</span>
+                  <span className="text-[9px] text-auro-navy/20 shrink-0">{tiempoRel(a.createdAt)}</span>
                 </div>
-              );
-            })}
+              ))}
+            </div>
           </div>
+
+          {/* Ranking comerciales */}
+          {ranking.length > 0 && (
+            <div className="bg-white rounded-card border border-auro-border shadow-sm overflow-hidden">
+              <div className="px-4 py-3 border-b border-auro-border flex items-center gap-2">
+                <span className="w-8 h-8 rounded-lg bg-estado-amber/10 flex items-center justify-center text-sm">🏆</span>
+                <span className="text-[13px] font-bold flex-1">Ranking comerciales</span>
+                <Link href="/comerciales" className="text-xs font-semibold text-auro-orange hover:underline">Ver →</Link>
+              </div>
+              <div className="divide-y divide-auro-border">
+                {ranking.slice(0, 5).map((c, i) => (
+                  <div key={i} className="px-4 py-2.5 flex items-center gap-2.5">
+                    <span className="text-sm font-bold text-auro-navy/20 w-5">{i + 1}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-semibold truncate">{c.nombre}</div>
+                      <div className="text-[10px] text-auro-navy/30">{c.obras} obras este mes</div>
+                    </div>
+                    <span className="text-xs font-bold text-auro-orange">{fmt(c.volumen)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
