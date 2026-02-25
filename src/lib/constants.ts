@@ -1,6 +1,3 @@
-// src/lib/constants.ts
-// Constantes compartidas entre componentes
-
 export const ESTADOS_CONFIG: Record<string, { label: string; color: string; bg: string; dot: string }> = {
   REVISION_TECNICA: { label: 'Revisión técnica', color: 'text-estado-blue', bg: 'bg-estado-blue/10', dot: 'bg-estado-blue' },
   PREPARANDO: { label: 'Preparando', color: 'text-estado-purple', bg: 'bg-estado-purple/10', dot: 'bg-estado-purple' },

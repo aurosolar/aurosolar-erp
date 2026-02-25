@@ -1,8 +1,9 @@
 // src/app/api/config-sistema/route.ts
-import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { withAuth, apiOk, parseBody } from '@/lib/api';
 import * as crmV2 from '@/services/crm-v2.service';
+
+export const dynamic = 'force-dynamic';
 
 export const GET = withAuth('config:ver', async () => {
   const config = await crmV2.obtenerConfigSistema();
@@ -15,6 +16,7 @@ const updateSchema = z.object({
   colorPrimario: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
   colorSecundario: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
   colorAccent: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+  branding: z.record(z.any()).optional(),
 });
 
 export const PATCH = withAuth('config:editar', async (req, { usuario }) => {

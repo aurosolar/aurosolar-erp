@@ -1,6 +1,8 @@
 import { withAuth, apiOk, apiError } from '@/lib/api';
 import * as crm from '@/services/crm-v2.service';
 
+export const dynamic = 'force-dynamic';
+
 export const PATCH = withAuth('crm:editar', async (req, { usuario }) => {
   const id = req.nextUrl.pathname.split('/').pop()!;
   const { estado, motivoPerdido } = await req.json();

@@ -6,7 +6,11 @@ import { cookies } from 'next/headers';
 import { prisma } from './prisma';
 import type { Rol } from '@prisma/client';
 
-const SECRET = new TextEncoder().encode(process.env.NEXTAUTH_SECRET || 'dev-secret-cambiar');
+// SEGURIDAD: No permitir arrancar sin secreto configurado
+if (!process.env.NEXTAUTH_SECRET) {
+  throw new Error('❌ NEXTAUTH_SECRET no está definido. Configura la variable de entorno antes de arrancar.');
+}
+const SECRET = new TextEncoder().encode(process.env.NEXTAUTH_SECRET);
 const COOKIE_NAME = 'aurosolar_session';
 const SESSION_DURATION = 60 * 60 * 24 * 7; // 7 días en segundos
 
@@ -136,9 +140,6 @@ const PERMISOS: Record<string, Permiso> = {
   'tratos:crear':     { roles: ['ADMIN', 'DIRECCION', 'COMERCIAL'] },
   'tratos:editar':    { roles: ['ADMIN', 'DIRECCION', 'COMERCIAL'] },
   'tratos:convertir': { roles: ['ADMIN', 'DIRECCION'] },
-  'tareas-crm:ver':   { roles: ['ADMIN', 'DIRECCION', 'COMERCIAL'] },
-  'tareas-crm:crear': { roles: ['ADMIN', 'DIRECCION', 'COMERCIAL'] },
-  'tareas-crm:editar':{ roles: ['ADMIN', 'DIRECCION', 'COMERCIAL'] },
 
   'exportar:ver':     { roles: ['ADMIN', 'DIRECCION'] },
   'comisiones:ver':   { roles: ['ADMIN', 'DIRECCION'] },

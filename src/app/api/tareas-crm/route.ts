@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { withAuth, apiOk, parseBody } from '@/lib/api';
 import * as crmV2 from '@/services/crm-v2.service';
 
+export const dynamic = 'force-dynamic';
+
 export const GET = withAuth('tareas-crm:ver', async (req, { usuario }) => {
   const { searchParams } = new URL(req.url);
   const userId = usuario.rol === 'COMERCIAL' ? usuario.id : (searchParams.get('asignadoId') || usuario.id);

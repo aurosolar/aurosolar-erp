@@ -28,7 +28,6 @@ export async function exportarObrasCSV() {
     (o.presupuestoTotal / 100).toFixed(2),
     (o.costeTotal / 100).toFixed(2),
     o.comercial?.nombre || '',
-    ''
     new Date(o.createdAt).toLocaleDateString('es-ES'),
   ].join(';'));
 

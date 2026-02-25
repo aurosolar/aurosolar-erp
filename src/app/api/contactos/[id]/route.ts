@@ -2,6 +2,8 @@
 import { withAuth, apiOk, apiError } from '@/lib/api';
 import * as crm from '@/services/crm-v2.service';
 
+export const dynamic = 'force-dynamic';
+
 export const GET = withAuth('crm:ver', async (req) => {
   const id = req.nextUrl.pathname.split('/').pop()!;
   const data = await crm.obtenerContacto(id);

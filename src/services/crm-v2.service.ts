@@ -72,8 +72,7 @@ export async function convertirACliente(contactoId: string, usuarioId: string) {
   if (!c) throw new Error('Contacto no encontrado');
   if (c.clienteId) throw new Error('Ya convertido');
   const cliente = await prisma.cliente.create({
-    data: { nombre: c.nombre, apellidos: c.apellidos, telefono: c.telefono, email: c.email, direccion: c.direccion, localidad: c.localidad, provincia: c.provincia, codigoPostal: c.codigoPostal },
-  });
+  data: { nombre: c.nombre, apellidos: c.apellidos, telefono: c.telefono, email: c.email, direccion: c.direccion, localidad: c.localidad, provincia: c.provincia, codigoPostal: c.codigoPostal },  });
   await prisma.contacto.update({ where: { id: contactoId }, data: { clienteId: cliente.id, estado: 'CLIENTE' } });
   await prisma.actividad.create({ data: { usuarioId, accion: 'CONTACTO_CONVERTIDO_CLIENTE', entidad: 'contacto', entidadId: contactoId, detalle: JSON.stringify({ clienteId: cliente.id }) } });
   return cliente;
