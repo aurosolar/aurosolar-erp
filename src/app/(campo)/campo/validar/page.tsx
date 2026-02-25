@@ -2,12 +2,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 export default function ValidarPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const preObraId = searchParams.get('obraId') || '';
   const [obras, setObras] = useState<any[]>([]);
-  const [obraId, setObraId] = useState('');
+  const [obraId, setObraId] = useState(preObraId);
   const [potenciaReal, setPotenciaReal] = useState('');
   const [numPanelesReal, setNumPanelesReal] = useState('');
   const [fotoInversor, setFotoInversor] = useState<string>('');
@@ -17,8 +19,8 @@ export default function ValidarPage() {
   const [done, setDone] = useState(false);
 
   useEffect(() => {
-    fetch('/api/obras?limit=50').then(r => r.json()).then(d => {
-      if (d.ok) setObras(d.data.obras.filter((o: any) => ['INSTALANDO','TERMINADA'].includes(o.estado)));
+    fetch('/api/campo/obras?activas=false').then(r => r.json()).then(d => {
+      if (d.ok) setObras(d.data.filter((o: any) => ['INSTALANDO','VALIDACION_OPERATIVA'].includes(o.estado)));
     });
   }, []);
 
@@ -54,9 +56,9 @@ export default function ValidarPage() {
     return (
       <div className="text-center py-12">
         <div className="text-6xl mb-4">🎉</div>
-        <h2 className="text-xl font-extrabold mb-2">Instalación cerrada</h2>
-        <p className="text-white/40 text-sm mb-1">Validación técnica registrada</p>
-        <p className="text-white/25 text-xs mb-6">El coordinador ha sido notificado</p>
+        <h2 className="text-xl font-extrabold mb-2">Validación enviada</h2>
+        <p className="text-white/40 text-sm mb-1">Pendiente de revisión del coordinador</p>
+        <p className="text-white/25 text-xs mb-6">Estado: Validación operativa</p>
         <button onClick={() => router.push('/campo')} className="h-12 px-8 bg-[#16A34A] text-white font-bold rounded-[14px] text-sm">
           Volver al inicio
         </button>

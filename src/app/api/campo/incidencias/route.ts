@@ -1,15 +1,23 @@
 // src/app/api/campo/incidencias/route.ts
 import { z } from 'zod';
-import { withAuth, apiOk, parseBody } from '@/lib/api';
+import { withAuth, apiOk } from '@/lib/api';
 import { prisma } from '@/lib/prisma';
 import logger from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
 
+const SLA_HORAS: Record<string, number> = {
+  BAJA: 72,
+  MEDIA: 48,
+  ALTA: 24,
+  CRITICA: 4,
+};
+
 const incidenciaSchema = z.object({
   obraId: z.string().uuid(),
   gravedad: z.enum(['BAJA', 'MEDIA', 'ALTA', 'CRITICA']),
   descripcion: z.string().min(5, 'Descripción muy corta'),
+  categoria: z.enum(['ELECTRICA', 'ESTRUCTURAL', 'ESTETICA', 'DOCUMENTAL', 'GARANTIA']).optional(),
   fotoUrl: z.string().optional(),
 });
 
@@ -21,31 +29,20 @@ export const POST = withAuth('incidencias:crear', async (req, { usuario }) => {
       obraId: input.obraId,
       gravedad: input.gravedad,
       descripcion: input.descripcion,
+      categoria: input.categoria,
       fotoUrl: input.fotoUrl,
       creadoPorId: usuario.id,
       estado: 'ABIERTA',
+      slaHoras: SLA_HORAS[input.gravedad] ?? 48,
     },
   });
 
-  // Si gravedad es ALTA o CRITICA, cambiar estado de obra a INCIDENCIA
+  // Si gravedad es ALTA o CRITICA, activar flag de incidencia crítica en obra
   if (['ALTA', 'CRITICA'].includes(input.gravedad)) {
-    const obra = await prisma.obra.findUnique({ where: { id: input.obraId } });
-    if (obra && obra.estado !== 'INCIDENCIA') {
-      await prisma.obra.update({
-        where: { id: input.obraId },
-        data: { estado: 'INCIDENCIA' },
-      });
-      await prisma.actividad.create({
-        data: {
-          obraId: input.obraId,
-          usuarioId: usuario.id,
-          accion: 'ESTADO_CAMBIADO',
-          entidad: 'obra',
-          entidadId: input.obraId,
-          detalle: JSON.stringify({ estadoAnterior: obra.estado, nuevoEstado: 'INCIDENCIA', motivo: `Incidencia ${input.gravedad}` }),
-        },
-      });
-    }
+    await prisma.obra.update({
+      where: { id: input.obraId },
+      data: { tieneIncidenciaCritica: true },
+    });
   }
 
   // Registrar actividad
@@ -56,10 +53,19 @@ export const POST = withAuth('incidencias:crear', async (req, { usuario }) => {
       accion: 'INCIDENCIA_CREADA',
       entidad: 'incidencia',
       entidadId: incidencia.id,
-      detalle: JSON.stringify({ gravedad: input.gravedad, descripcion: input.descripcion }),
+      detalle: JSON.stringify({
+        gravedad: input.gravedad,
+        categoria: input.categoria,
+        descripcion: input.descripcion,
+      }),
     },
   });
 
-  logger.info('incidencia_creada', { obraId: input.obraId, gravedad: input.gravedad, usuario: usuario.email });
+  logger.info('incidencia_creada', {
+    obraId: input.obraId,
+    gravedad: input.gravedad,
+    usuario: usuario.email,
+  });
+
   return apiOk(incidencia, 201);
 });

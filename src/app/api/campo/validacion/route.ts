@@ -25,20 +25,20 @@ export const POST = withAuth('campo:validar', async (req, { usuario }) => {
       observaciones: input.observaciones,
       validadoPorId: usuario.id,
       completa: true,
-      // TODO: URLs de fotos cuando se implemente upload real
       fotoInversorUrl: 'pendiente_upload',
       fotoPanelesUrl: 'pendiente_upload',
     },
   });
 
-  // Cambiar estado de obra a TERMINADA
+  // Cambiar estado de obra a VALIDACION_OPERATIVA (no TERMINADA)
+  // Alineado con flujo Sprint 1: INSTALANDO → VALIDACION_OPERATIVA → REVISION_COORDINADOR → TERMINADA
   const obra = await prisma.obra.findUnique({ where: { id: input.obraId } });
-  if (obra && ['INSTALANDO', 'TERMINADA'].includes(obra.estado)) {
+  if (obra && obra.estado === 'INSTALANDO') {
     await prisma.obra.update({
       where: { id: input.obraId },
       data: {
-        estado: 'TERMINADA',
-        fechaFin: obra.fechaFin || new Date(),
+        estado: 'VALIDACION_OPERATIVA',
+        fechaValidacion: new Date(),
       },
     });
 
@@ -49,12 +49,16 @@ export const POST = withAuth('campo:validar', async (req, { usuario }) => {
         accion: 'ESTADO_CAMBIADO',
         entidad: 'obra',
         entidadId: input.obraId,
-        detalle: JSON.stringify({ estadoAnterior: obra.estado, nuevoEstado: 'TERMINADA', motivo: 'Validación técnica completada' }),
+        detalle: JSON.stringify({
+          estadoAnterior: obra.estado,
+          nuevoEstado: 'VALIDACION_OPERATIVA',
+          motivo: 'Validación técnica completada por instalador',
+        }),
       },
     });
   }
 
-  // Registrar actividad
+  // Registrar actividad de la validación
   await prisma.actividad.create({
     data: {
       obraId: input.obraId,
@@ -62,7 +66,10 @@ export const POST = withAuth('campo:validar', async (req, { usuario }) => {
       accion: 'VALIDACION_COMPLETADA',
       entidad: 'validacion',
       entidadId: validacion.id,
-      detalle: JSON.stringify({ potenciaReal: input.potenciaReal, numPanelesReal: input.numPanelesReal }),
+      detalle: JSON.stringify({
+        potenciaReal: input.potenciaReal,
+        numPanelesReal: input.numPanelesReal,
+      }),
     },
   });
 

@@ -1,6 +1,6 @@
 // src/app/api/campo/checkin/route.ts
 import { z } from 'zod';
-import { withAuth, apiOk, parseBody } from '@/lib/api';
+import { withAuth, apiOk } from '@/lib/api';
 import { prisma } from '@/lib/prisma';
 import logger from '@/lib/logger';
 
@@ -20,6 +20,7 @@ export const GET = withAuth('campo:checkin', async (req, { usuario }) => {
         select: {
           codigo: true,
           direccionInstalacion: true,
+          localidad: true,
           estado: true,
           cliente: { select: { nombre: true, apellidos: true } },
         },
@@ -30,6 +31,7 @@ export const GET = withAuth('campo:checkin', async (req, { usuario }) => {
   return apiOk(checkins);
 });
 
+// ── POST /api/campo/checkin — Registrar check-in ──
 const checkinSchema = z.object({
   obraId: z.string().uuid(),
   nota: z.string().optional(),
@@ -39,6 +41,30 @@ const checkinSchema = z.object({
 
 export const POST = withAuth('campo:checkin', async (req, { usuario }) => {
   const input = await checkinSchema.parseAsync(await req.json());
+
+  // Verificar que no haya checkin activo (sin checkout)
+  const checkinActivo = await prisma.checkin.findFirst({
+    where: { instaladorId: usuario.id, horaSalida: null },
+  });
+
+  if (checkinActivo) {
+    return Response.json(
+      { ok: false, error: 'Ya tienes un check-in activo. Haz check-out primero.' },
+      { status: 400 }
+    );
+  }
+
+  // Verificar que el instalador está asignado a esta obra
+  const asignacion = await prisma.obraInstalador.findUnique({
+    where: { obraId_instaladorId: { obraId: input.obraId, instaladorId: usuario.id } },
+  });
+
+  if (!asignacion) {
+    return Response.json(
+      { ok: false, error: 'No estás asignado a esta obra.' },
+      { status: 403 }
+    );
+  }
 
   // Crear checkin
   const checkin = await prisma.checkin.create({
@@ -67,7 +93,11 @@ export const POST = withAuth('campo:checkin', async (req, { usuario }) => {
         accion: 'ESTADO_CAMBIADO',
         entidad: 'obra',
         entidadId: input.obraId,
-        detalle: JSON.stringify({ estadoAnterior: 'PROGRAMADA', nuevoEstado: 'INSTALANDO', motivo: 'Check-in automático' }),
+        detalle: JSON.stringify({
+          estadoAnterior: 'PROGRAMADA',
+          nuevoEstado: 'INSTALANDO',
+          motivo: 'Check-in automático',
+        }),
       },
     });
   }
@@ -80,10 +110,74 @@ export const POST = withAuth('campo:checkin', async (req, { usuario }) => {
       accion: 'CHECKIN_REGISTRADO',
       entidad: 'checkin',
       entidadId: checkin.id,
-      detalle: JSON.stringify({ nota: input.nota }),
+      detalle: JSON.stringify({
+        nota: input.nota,
+        latitud: input.latitud,
+        longitud: input.longitud,
+        conGeo: !!(input.latitud && input.longitud),
+      }),
     },
   });
 
   logger.info('checkin_registrado', { obraId: input.obraId, instalador: usuario.email });
   return apiOk(checkin, 201);
+});
+
+// ── PATCH /api/campo/checkin — Check-out (registrar salida) ──
+const checkoutSchema = z.object({
+  checkinId: z.string().uuid(),
+  latitud: z.number().nullable().optional(),
+  longitud: z.number().nullable().optional(),
+  nota: z.string().optional(),
+});
+
+export const PATCH = withAuth('campo:checkin', async (req, { usuario }) => {
+  const input = await checkoutSchema.parseAsync(await req.json());
+
+  // Buscar el checkin y verificar que pertenece al usuario
+  const checkin = await prisma.checkin.findFirst({
+    where: { id: input.checkinId, instaladorId: usuario.id, horaSalida: null },
+  });
+
+  if (!checkin) {
+    return Response.json(
+      { ok: false, error: 'Check-in no encontrado o ya cerrado.' },
+      { status: 404 }
+    );
+  }
+
+  const ahora = new Date();
+  const duracionMs = ahora.getTime() - checkin.horaEntrada.getTime();
+  const duracionMin = Math.round(duracionMs / 60000);
+
+  // Actualizar checkin con hora de salida
+  const checkinActualizado = await prisma.checkin.update({
+    where: { id: input.checkinId },
+    data: { horaSalida: ahora },
+  });
+
+  // Registrar actividad
+  await prisma.actividad.create({
+    data: {
+      obraId: checkin.obraId,
+      usuarioId: usuario.id,
+      accion: 'CHECKOUT_REGISTRADO',
+      entidad: 'checkin',
+      entidadId: checkin.id,
+      detalle: JSON.stringify({
+        duracionMinutos: duracionMin,
+        horaEntrada: checkin.horaEntrada.toISOString(),
+        horaSalida: ahora.toISOString(),
+        nota: input.nota,
+      }),
+    },
+  });
+
+  logger.info('checkout_registrado', {
+    obraId: checkin.obraId,
+    instalador: usuario.email,
+    duracionMin,
+  });
+
+  return apiOk({ ...checkinActualizado, duracionMinutos: duracionMin });
 });

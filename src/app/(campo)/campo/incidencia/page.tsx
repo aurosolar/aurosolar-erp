@@ -2,13 +2,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 export default function IncidenciaPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const preObraId = searchParams.get('obraId') || '';
   const [obras, setObras] = useState<any[]>([]);
-  const [obraId, setObraId] = useState('');
-  const [gravedad, setGravedad] = useState<'BAJA' | 'MEDIA' | 'ALTA' | ''>('');
+  const [obraId, setObraId] = useState(preObraId);
+  const [gravedad, setGravedad] = useState<'BAJA' | 'MEDIA' | 'ALTA' | 'CRITICA' | ''>('');
   const [descripcion, setDescripcion] = useState('');
   const [foto, setFoto] = useState<File | null>(null);
   const [fotoPreview, setFotoPreview] = useState('');
@@ -16,8 +18,8 @@ export default function IncidenciaPage() {
   const [done, setDone] = useState(false);
 
   useEffect(() => {
-    fetch('/api/obras?limit=50').then(r => r.json()).then(d => {
-      if (d.ok) setObras(d.data.obras.filter((o: any) => ['PROGRAMADA','INSTALANDO','TERMINADA'].includes(o.estado)));
+    fetch('/api/campo/obras?activas=false').then(r => r.json()).then(d => {
+      if (d.ok) setObras(d.data.filter((o: any) => ['PROGRAMADA','INSTALANDO','VALIDACION_OPERATIVA'].includes(o.estado)));
     });
   }, []);
 
@@ -56,6 +58,7 @@ export default function IncidenciaPage() {
   }
 
   const GRAVEDADES = [
+    { value: 'CRITICA', icon: '⛔', label: 'Crítica', color: 'border-[#DC2626] bg-[#DC2626]/15' },
     { value: 'ALTA', icon: '🔴', label: 'Alta', color: 'border-[#DC2626] bg-[#DC2626]/10' },
     { value: 'MEDIA', icon: '🟡', label: 'Media', color: 'border-[#D97706] bg-[#D97706]/10' },
     { value: 'BAJA', icon: '🔵', label: 'Baja', color: 'border-[#2563EB] bg-[#2563EB]/10' },
@@ -78,7 +81,7 @@ export default function IncidenciaPage() {
       {/* Gravedad */}
       <div className="mb-4">
         <label className="block text-[10px] font-bold text-white/30 uppercase tracking-wider mb-1.5">Gravedad</label>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-4 gap-2">
           {GRAVEDADES.map((g) => (
             <button
               key={g.value}

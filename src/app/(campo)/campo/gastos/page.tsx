@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 const TIPOS_GASTO = [
   { value: 'MATERIAL_EXTRA', icon: '🔩', label: 'Material extra' },
@@ -15,8 +15,10 @@ const TIPOS_GASTO = [
 
 export default function GastosPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const preObraId = searchParams.get('obraId') || '';
   const [obras, setObras] = useState<any[]>([]);
-  const [obraId, setObraId] = useState('');
+  const [obraId, setObraId] = useState(preObraId);
   const [tipo, setTipo] = useState('');
   const [importe, setImporte] = useState('');
   const [descripcion, setDescripcion] = useState('');
@@ -25,8 +27,8 @@ export default function GastosPage() {
   const [done, setDone] = useState(false);
 
   useEffect(() => {
-    fetch('/api/obras?limit=50').then(r => r.json()).then(d => {
-      if (d.ok) setObras(d.data.obras.filter((o: any) => !['COMPLETADA','CANCELADA'].includes(o.estado)));
+    fetch('/api/campo/obras?activas=false').then(r => r.json()).then(d => {
+      if (d.ok) setObras(d.data.filter((o: any) => !['COMPLETADA','CANCELADA'].includes(o.estado)));
     });
   }, []);
 

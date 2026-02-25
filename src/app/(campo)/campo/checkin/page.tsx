@@ -2,41 +2,94 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 interface ObraCheckin {
   id: string;
   codigo: string;
-  cliente: { nombre: string; apellidos: string };
+  tipo: string;
+  estado: string;
   direccionInstalacion: string | null;
   localidad: string | null;
+  potenciaKwp: number | null;
+  cliente: { nombre: string; apellidos: string };
+  checkinActivo: { id: string } | null;
 }
 
 export default function CheckinPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const preObraId = searchParams.get('obraId') || '';
+
   const [obras, setObras] = useState<ObraCheckin[]>([]);
-  const [obraId, setObraId] = useState<string>('');
+  const [obraId, setObraId] = useState(preObraId);
   const [nota, setNota] = useState('');
   const [foto, setFoto] = useState<File | null>(null);
-  const [fotoPreview, setFotoPreview] = useState<string>('');
+  const [fotoPreview, setFotoPreview] = useState('');
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
   const [hora, setHora] = useState('');
+  const [geoStatus, setGeoStatus] = useState<'idle' | 'loading' | 'ok' | 'denied' | 'error'>('idle');
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [yaActivo, setYaActivo] = useState(false);
 
   useEffect(() => {
     fetchObras();
+    checkCheckinActivo();
   }, []);
 
   async function fetchObras() {
     try {
-      const res = await fetch('/api/obras?limit=50');
+      const res = await fetch('/api/campo/obras');
       const data = await res.json();
       if (data.ok) {
-        setObras(data.data.obras.filter((o: any) =>
-          ['PROGRAMADA', 'INSTALANDO'].includes(o.estado)
-        ));
+        // Solo mostrar obras sin checkin activo y en estado PROGRAMADA o INSTALANDO
+        setObras(
+          data.data.filter(
+            (o: ObraCheckin) =>
+              !o.checkinActivo && ['PROGRAMADA', 'INSTALANDO'].includes(o.estado)
+          )
+        );
+        // Si se pre-seleccionó una obra, verificar que existe
+        if (preObraId) {
+          const existe = data.data.find((o: ObraCheckin) => o.id === preObraId);
+          if (existe && existe.checkinActivo) {
+            setYaActivo(true);
+          }
+        }
       }
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function checkCheckinActivo() {
+    try {
+      const res = await fetch('/api/campo/checkin/activo');
+      const data = await res.json();
+      if (data.ok && data.data) {
+        setYaActivo(true);
+      }
+    } catch {}
+  }
+
+  function requestGeo() {
+    if (!navigator.geolocation) {
+      setGeoStatus('error');
+      return;
+    }
+    setGeoStatus('loading');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setGeoStatus('ok');
+      },
+      (err) => {
+        if (err.code === 1) setGeoStatus('denied');
+        else setGeoStatus('error');
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
   }
 
   function handleFoto(e: React.ChangeEvent<HTMLInputElement>) {
@@ -51,6 +104,9 @@ export default function CheckinPage() {
     if (!obraId) return;
     setLoading(true);
 
+    // Intentar obtener geolocalización si aún no la tenemos
+    if (geoStatus === 'idle') requestGeo();
+
     try {
       const res = await fetch('/api/campo/checkin', {
         method: 'POST',
@@ -58,8 +114,8 @@ export default function CheckinPage() {
         body: JSON.stringify({
           obraId,
           nota: nota || undefined,
-          latitud: null, // TODO: navigator.geolocation
-          longitud: null,
+          latitud: coords?.lat ?? null,
+          longitud: coords?.lng ?? null,
         }),
       });
       const data = await res.json();
@@ -78,6 +134,26 @@ export default function CheckinPage() {
 
   const obraSeleccionada = obras.find((o) => o.id === obraId);
 
+  // Ya tiene checkin activo
+  if (yaActivo) {
+    return (
+      <div className="text-center py-12">
+        <div className="text-6xl mb-4">⚡</div>
+        <h2 className="text-xl font-extrabold mb-2">Ya tienes jornada activa</h2>
+        <p className="text-white/40 text-sm mb-6">
+          Haz check-out desde la tarjeta de jornada antes de iniciar otro check-in.
+        </p>
+        <button
+          onClick={() => router.push('/campo')}
+          className="h-12 px-8 bg-[#F5820A] text-white font-bold rounded-[14px] text-sm active:scale-95 transition-transform"
+        >
+          Volver al inicio
+        </button>
+      </div>
+    );
+  }
+
+  // Check-in completado
   if (done) {
     return (
       <div className="text-center py-12">
@@ -87,7 +163,15 @@ export default function CheckinPage() {
           Hora de llegada: <span className="font-bold text-white">{hora}</span>
         </p>
         {obraSeleccionada && (
-          <p className="text-white/30 text-xs mb-6">{obraSeleccionada.codigo} · {obraSeleccionada.cliente.nombre}</p>
+          <p className="text-white/30 text-xs mb-2">
+            {obraSeleccionada.codigo} · {obraSeleccionada.cliente.nombre}
+          </p>
+        )}
+        {coords && (
+          <p className="text-[#16A34A] text-xs mb-4">📍 Ubicación registrada</p>
+        )}
+        {!coords && geoStatus !== 'idle' && (
+          <p className="text-[#D97706] text-xs mb-4">📍 Sin geolocalización</p>
         )}
         <button
           onClick={() => router.push('/campo')}
@@ -127,15 +211,53 @@ export default function CheckinPage() {
       {obraSeleccionada && (
         <div className="bg-white/[0.06] border border-white/[0.08] rounded-[10px] p-3 mb-4 flex items-center gap-3">
           <span className="text-xl">🏠</span>
-          <div>
+          <div className="min-w-0">
             <div className="text-[11px] font-bold text-[#F5820A]">{obraSeleccionada.codigo}</div>
             <div className="text-sm font-bold">{obraSeleccionada.cliente.nombre} {obraSeleccionada.cliente.apellidos}</div>
             {obraSeleccionada.direccionInstalacion && (
-              <div className="text-xs text-white/35">📍 {obraSeleccionada.direccionInstalacion}, {obraSeleccionada.localidad}</div>
+              <div className="text-xs text-white/35 truncate">
+                📍 {obraSeleccionada.direccionInstalacion}{obraSeleccionada.localidad ? `, ${obraSeleccionada.localidad}` : ''}
+              </div>
             )}
           </div>
         </div>
       )}
+
+      {/* Geolocalización */}
+      <div className="mb-4">
+        <label className="block text-[10px] font-bold text-white/30 uppercase tracking-wider mb-1.5">
+          📍 Ubicación
+        </label>
+        {geoStatus === 'idle' && (
+          <button
+            onClick={requestGeo}
+            className="w-full h-11 bg-[#2563EB]/10 border border-[#2563EB]/20 text-[#60A5FA] font-bold rounded-[14px] text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform"
+          >
+            📍 Obtener ubicación
+          </button>
+        )}
+        {geoStatus === 'loading' && (
+          <div className="w-full h-11 bg-[#2563EB]/10 border border-[#2563EB]/20 rounded-[14px] flex items-center justify-center gap-2 text-sm text-[#60A5FA]">
+            <div className="w-4 h-4 border-2 border-[#60A5FA]/30 border-t-[#60A5FA] rounded-full animate-spin" />
+            Obteniendo ubicación...
+          </div>
+        )}
+        {geoStatus === 'ok' && coords && (
+          <div className="w-full h-11 bg-[#16A34A]/10 border border-[#16A34A]/20 rounded-[14px] flex items-center justify-center gap-2 text-sm text-[#4ADE80] font-medium">
+            ✅ Ubicación obtenida ({coords.lat.toFixed(4)}, {coords.lng.toFixed(4)})
+          </div>
+        )}
+        {geoStatus === 'denied' && (
+          <div className="w-full h-11 bg-[#D97706]/10 border border-[#D97706]/20 rounded-[14px] flex items-center justify-center gap-2 text-sm text-[#FBBF24] font-medium">
+            ⚠️ Permiso denegado — se registrará sin ubicación
+          </div>
+        )}
+        {geoStatus === 'error' && (
+          <div className="w-full h-11 bg-[#DC2626]/10 border border-[#DC2626]/20 rounded-[14px] flex items-center justify-center gap-2 text-sm text-[#F87171] font-medium">
+            ⚠️ No se pudo obtener ubicación
+          </div>
+        )}
+      </div>
 
       {/* Foto de llegada */}
       <div className="mb-4">
@@ -153,17 +275,11 @@ export default function CheckinPage() {
             </button>
           </div>
         ) : (
-          <label className="flex flex-col items-center justify-center h-32 bg-white/[0.04] border-2 border-dashed border-white/[0.08] rounded-[14px] cursor-pointer active:bg-white/[0.06]">
+          <label className="flex flex-col items-center justify-center h-28 bg-white/[0.04] border-2 border-dashed border-white/[0.08] rounded-[14px] cursor-pointer active:bg-white/[0.06]">
             <span className="text-3xl mb-1">📷</span>
             <span className="text-sm text-white/40 font-medium">Foto del acceso o fachada</span>
             <span className="text-[10px] text-white/20 mt-0.5">Toca para abrir cámara</span>
-            <input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={handleFoto}
-              className="hidden"
-            />
+            <input type="file" accept="image/*" capture="environment" onChange={handleFoto} className="hidden" />
           </label>
         )}
       </div>

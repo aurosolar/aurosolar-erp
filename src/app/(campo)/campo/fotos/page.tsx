@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 const TIPOS_FOTO = [
   { value: 'GENERAL', icon: '📷', label: 'General' },
@@ -14,16 +14,18 @@ const TIPOS_FOTO = [
 
 export default function FotosPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const preObraId = searchParams.get('obraId') || '';
   const [obras, setObras] = useState<any[]>([]);
-  const [obraId, setObraId] = useState('');
+  const [obraId, setObraId] = useState(preObraId);
   const [tipoFoto, setTipoFoto] = useState('GENERAL');
   const [fotos, setFotos] = useState<Array<{ file: File; preview: string; tipo: string }>>([]);
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
 
   useEffect(() => {
-    fetch('/api/obras?limit=50').then(r => r.json()).then(d => {
-      if (d.ok) setObras(d.data.obras.filter((o: any) => !['COMPLETADA', 'CANCELADA'].includes(o.estado)));
+    fetch('/api/campo/obras?activas=false').then(r => r.json()).then(d => {
+      if (d.ok) setObras(d.data.filter((o: any) => !['COMPLETADA', 'CANCELADA'].includes(o.estado)));
     });
   }, []);
 
