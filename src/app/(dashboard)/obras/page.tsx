@@ -38,8 +38,6 @@ const ESTADOS_CONFIG: Record<string, { label: string; color: string; bg: string;
   CANCELADA: { label: 'Cancelada', color: 'text-auro-navy/40', bg: 'bg-auro-navy/5', dot: 'bg-auro-navy/30' },
 };
 
-export { ESTADOS_CONFIG };
-
 export default function ObrasPage() {
   const [obras, setObras] = useState<Obra[]>([]);
   const [total, setTotal] = useState(0);

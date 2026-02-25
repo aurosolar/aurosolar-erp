@@ -1,7 +1,7 @@
 // src/components/obras/ObraCard.tsx
 'use client';
 
-import { ESTADOS_CONFIG } from '@/app/(dashboard)/obras/page';
+import { ESTADOS_CONFIG } from '@/lib/constants';
 
 interface Props {
   obra: {

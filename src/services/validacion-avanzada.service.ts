@@ -118,7 +118,7 @@ export async function guardarValidacion(input: {
             marca: (input.inversorReal || obra.inversor || '').split(' ')[0],
             modelo: input.inversorReal || obra.inversor || '',
             numeroSerie: input.serialInversor,
-            garantiaAnios: 10,
+            
             garantiaHasta: new Date(Date.now() + 10 * 365.25 * 24 * 3600000),
           },
         });
@@ -133,7 +133,7 @@ export async function guardarValidacion(input: {
             marca: (input.bateriaReal || '').split(' ')[0],
             modelo: input.bateriaReal || '',
             numeroSerie: input.serialBateria,
-            garantiaAnios: 10,
+            
             garantiaHasta: new Date(Date.now() + 10 * 365.25 * 24 * 3600000),
           },
         });

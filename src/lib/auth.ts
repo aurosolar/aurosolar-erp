@@ -107,7 +107,12 @@ const PERMISOS: Record<string, Permiso> = {
   'crm:ver':          { roles: ['ADMIN', 'DIRECCION', 'COMERCIAL'] },
   'crm:gestionar':    { roles: ['ADMIN', 'DIRECCION', 'COMERCIAL'] },
   'crm:crear':        { roles: ['ADMIN', 'DIRECCION', 'COMERCIAL'] },
+  'crm:editar':       { roles: ['ADMIN', 'DIRECCION', 'COMERCIAL'] },
   'crm:convertir':    { roles: ['ADMIN', 'DIRECCION', 'COMERCIAL'] },
+
+  'tareas-crm:ver':     { roles: ['ADMIN', 'DIRECCION', 'COMERCIAL'] },
+  'tareas-crm:crear':   { roles: ['ADMIN', 'DIRECCION', 'COMERCIAL'] },
+  'tareas-crm:editar':  { roles: ['ADMIN', 'DIRECCION', 'COMERCIAL'] },
 
   'planificacion:ver':       { roles: ['ADMIN', 'DIRECCION', 'JEFE_INSTALACIONES'] },
   'planificacion:gestionar': { roles: ['ADMIN', 'DIRECCION', 'JEFE_INSTALACIONES'] },
@@ -120,6 +125,24 @@ const PERMISOS: Record<string, Permiso> = {
   'activos:gestionar':       { roles: ['ADMIN', 'DIRECCION', 'JEFE_INSTALACIONES'] },
 
   'config:ver':       { roles: ['ADMIN', 'DIRECCION'] },
+  'config:editar':    { roles: ['ADMIN'] },
+
+  // CRM V2 — Contactos, Tratos, Tareas
+  'contactos:ver':    { roles: ['ADMIN', 'DIRECCION', 'COMERCIAL'] },
+  'contactos:crear':  { roles: ['ADMIN', 'DIRECCION', 'COMERCIAL'] },
+  'contactos:editar': { roles: ['ADMIN', 'DIRECCION', 'COMERCIAL'] },
+  'contactos:convertir': { roles: ['ADMIN', 'DIRECCION', 'COMERCIAL'] },
+  'tratos:ver':       { roles: ['ADMIN', 'DIRECCION', 'COMERCIAL'] },
+  'tratos:crear':     { roles: ['ADMIN', 'DIRECCION', 'COMERCIAL'] },
+  'tratos:editar':    { roles: ['ADMIN', 'DIRECCION', 'COMERCIAL'] },
+  'tratos:convertir': { roles: ['ADMIN', 'DIRECCION'] },
+  'tareas-crm:ver':   { roles: ['ADMIN', 'DIRECCION', 'COMERCIAL'] },
+  'tareas-crm:crear': { roles: ['ADMIN', 'DIRECCION', 'COMERCIAL'] },
+  'tareas-crm:editar':{ roles: ['ADMIN', 'DIRECCION', 'COMERCIAL'] },
+
+  'exportar:ver':     { roles: ['ADMIN', 'DIRECCION'] },
+  'comisiones:ver':   { roles: ['ADMIN', 'DIRECCION'] },
+  'comisiones:gestionar': { roles: ['ADMIN', 'DIRECCION'] },
 };
 
 export function tienePermiso(rol: Rol, permiso: string): boolean {
