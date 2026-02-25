@@ -61,6 +61,11 @@ model Usuario {
   leadsAsignados     Lead[]
   visitasComercial   Visita[]
   sesiones           Session[]
+  // CRM V2
+  contactosComercial Contacto[]        @relation("ContactoComercial")
+  tareasAsignadas    TareaCrm[]        @relation("TareaAsignada")
+  notasAutor         NotaCrm[]         @relation("NotaAutor")
+  archivosSubidos    ArchivoCrm[]      @relation("ArchivoSubidoPor")
 
   @@map("usuarios")
 }
@@ -101,6 +106,7 @@ model Cliente {
   // Relaciones
   obras         Obra[]
   leads         Lead[]
+  contactos     Contacto[]
 
   @@map("clientes")
 }
@@ -276,6 +282,7 @@ model Obra {
   comision          Comision?
   subvenciones      Subvencion[]
   checklistValidaciones ChecklistValidacion[]
+  trato             Trato?           @relation("TratoObra")
 
   @@map("obras")
 }
@@ -797,4 +804,177 @@ model ChecklistItem {
   checklist       ChecklistValidacion @relation(fields: [checklistId], references: [id], onDelete: Cascade)
 
   @@map("checklist_items")
+}
+
+// ── Configuración del sistema (branding, etc.) ──
+model ConfigSistema {
+  id            String   @id @default("singleton")
+  nombreEmpresa String   @default("Auro Solar") @map("nombre_empresa")
+  logoUrl       String?  @map("logo_url")
+  colorPrimario String   @default("#F58216") @map("color_primario")
+  colorSecundario String @default("#1A2E4A") @map("color_secundario")
+  colorAccent   String   @default("#F58216") @map("color_accent")
+
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("config_sistema")
+}
+
+// ── CRM Avanzado: Contactos (posibles clientes) ──
+enum EstadoContacto {
+  POSIBLE_CLIENTE
+  CUALIFICADO
+  CLIENTE
+  PERDIDO
+  INACTIVO
+}
+
+model Contacto {
+  id              String          @id @default(uuid())
+  nombre          String
+  apellidos       String          @default("")
+  empresa         String?
+  telefono        String?
+  email           String?
+  direccion       String?
+  localidad       String?
+  provincia       String?
+  codigoPostal    String?         @map("codigo_postal")
+  estado          EstadoContacto  @default(POSIBLE_CLIENTE)
+  tipoInteres     TipoInstalacion? @map("tipo_interes")
+  origen          OrigenLead?
+  comercialId     String?         @map("comercial_id")
+  clienteId       String?         @map("cliente_id") // Cuando se convierte a cliente
+
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+  deletedAt       DateTime?       @map("deleted_at")
+
+  comercial       Usuario?        @relation("ContactoComercial", fields: [comercialId], references: [id])
+  cliente         Cliente?        @relation(fields: [clienteId], references: [id])
+  tratos          Trato[]
+  tareasCrm       TareaCrm[]
+  notasCrm        NotaCrm[]
+  archivosCrm     ArchivoCrm[]
+
+  @@index([comercialId])
+  @@index([estado])
+  @@map("contactos")
+}
+
+// ── CRM: Tratos / Oportunidades ──
+enum EstadoTrato {
+  NUEVO_CONTACTO
+  VISITA_AGENDADA
+  A_LA_ESPERA_PRESUPUESTO
+  PRESUPUESTO_ENVIADO
+  NEGOCIACION
+  GANADO
+  PERDIDO
+}
+
+model Trato {
+  id              String       @id @default(uuid())
+  contactoId      String       @map("contacto_id")
+  titulo          String
+  estado          EstadoTrato  @default(NUEVO)
+  importe         Int?         // Céntimos
+  tipo            TipoInstalacion?
+  potenciaEstimada Float?      @map("potencia_estimada")
+  fechaCierre     DateTime?    @map("fecha_cierre")
+  obraId          String?      @unique @map("obra_id") // Si se convirtió en obra
+  notas           String?
+  motivoPerdido   String?      @map("motivo_perdido") // Razón si estado = PERDIDO
+
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  contacto        Contacto     @relation(fields: [contactoId], references: [id])
+  obra            Obra?        @relation("TratoObra", fields: [obraId], references: [id])
+
+  @@index([contactoId])
+  @@index([estado])
+  @@map("tratos")
+}
+
+// ── CRM: Tareas (llamadas, emails, reuniones, seguimiento) ──
+enum TipoTarea {
+  LLAMADA
+  EMAIL
+  REUNION
+  VISITA
+  PRESUPUESTO
+  SEGUIMIENTO
+  OTRO
+}
+
+enum EstadoTarea {
+  PENDIENTE
+  EN_CURSO
+  COMPLETADA
+  CANCELADA
+}
+
+model TareaCrm {
+  id              String       @id @default(uuid())
+  contactoId      String?      @map("contacto_id")
+  tratoId         String?      @map("trato_id")
+  asignadoId      String       @map("asignado_id")
+  tipo            TipoTarea
+  estado          EstadoTarea  @default(PENDIENTE)
+  titulo          String
+  descripcion     String?
+  fechaVencimiento DateTime?   @map("fecha_vencimiento")
+  fechaCompletada DateTime?    @map("fecha_completada")
+  prioridad       String       @default("MEDIA") // ALTA, MEDIA, BAJA
+  // Geolocalización
+  latitud         Float?
+  longitud        Float?
+
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  contacto        Contacto?    @relation(fields: [contactoId], references: [id])
+  asignado        Usuario      @relation("TareaAsignada", fields: [asignadoId], references: [id])
+
+  @@index([asignadoId, estado])
+  @@index([contactoId])
+  @@map("tareas_crm")
+}
+
+// ── CRM: Notas / Reportes ──
+model NotaCrm {
+  id              String    @id @default(uuid())
+  contactoId      String    @map("contacto_id")
+  autorId         String    @map("autor_id")
+  contenido       String
+  fijada          Boolean   @default(false)
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  contacto        Contacto  @relation(fields: [contactoId], references: [id])
+  autor           Usuario   @relation("NotaAutor", fields: [autorId], references: [id])
+
+  @@index([contactoId])
+  @@map("notas_crm")
+}
+
+// ── CRM: Archivos adjuntos ──
+model ArchivoCrm {
+  id              String    @id @default(uuid())
+  contactoId      String    @map("contacto_id")
+  nombre          String
+  rutaArchivo     String    @map("ruta_archivo")
+  mimeType        String?   @map("mime_type")
+  tamanoBytes     Int?      @map("tamano_bytes")
+  descripcion     String?
+  subidoPorId     String    @map("subido_por_id")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  contacto        Contacto  @relation(fields: [contactoId], references: [id])
+  subidoPor       Usuario   @relation("ArchivoSubidoPor", fields: [subidoPorId], references: [id])
+
+  @@index([contactoId])
+  @@map("archivos_crm")
 }

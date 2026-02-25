@@ -9,12 +9,11 @@ export async function exportarObrasCSV() {
     include: {
       cliente: { select: { nombre: true, apellidos: true, dniCif: true } },
       comercial: { select: { nombre: true } },
-      jefeInstalaciones: { select: { nombre: true } },
     },
     orderBy: { createdAt: 'desc' },
   });
 
-  const header = 'Código;Cliente;DNI/CIF;Estado;Tipo;Localidad;Provincia;Potencia kWp;Paneles;Inversor;Presupuesto;Coste;Comercial;Jefe Inst.;Creada';
+  const header = 'Código;Cliente;DNI/CIF;Estado;Tipo;Localidad;Provincia;Potencia kWp;Paneles;Inversor;Presupuesto;Coste;Comercial;Creada';
   const rows = obras.map(o => [
     o.codigo,
     `${o.cliente.nombre} ${o.cliente.apellidos || ''}`.trim(),
@@ -29,7 +28,7 @@ export async function exportarObrasCSV() {
     (o.presupuestoTotal / 100).toFixed(2),
     (o.costeTotal / 100).toFixed(2),
     o.comercial?.nombre || '',
-    o.jefeInstalaciones?.nombre || '',
+    ''
     new Date(o.createdAt).toLocaleDateString('es-ES'),
   ].join(';'));
 

@@ -33,7 +33,7 @@ export async function detalle(id: string) {
         where: { deletedAt: null },
         select: {
           id: true, codigo: true, estado: true, tipo: true,
-          presupuesto: true, localidad: true, createdAt: true,
+          presupuestoTotal: true, localidad: true, createdAt: true,
           pagos: { select: { importe: true } },
         },
         orderBy: { createdAt: 'desc' },
