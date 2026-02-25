@@ -206,8 +206,9 @@ enum EstadoObra {
   PENDIENTE_MATERIAL
   PROGRAMADA
   INSTALANDO
+  VALIDACION_OPERATIVA
+  REVISION_COORDINADOR
   TERMINADA
-  INCIDENCIA
   LEGALIZACION
   LEGALIZADA
   COMPLETADA
@@ -250,7 +251,11 @@ model Obra {
   fechaProgramada   DateTime?        @map("fecha_programada")
   fechaInicio       DateTime?        @map("fecha_inicio")
   fechaFin          DateTime?        @map("fecha_fin")
+  fechaValidacion   DateTime?        @map("fecha_validacion")
   fechaLegalizacion DateTime?        @map("fecha_legalizacion")
+
+  // Flags operativos
+  tieneIncidenciaCritica Boolean     @default(false) @map("tiene_incidencia_critica")
 
   // Legalización
   expedienteLegal   String?          @map("expediente_legal")
@@ -454,8 +459,10 @@ model Gasto {
   importe       Int       // Céntimos
   descripcion   String?
   fotoTicketUrl String?   @map("foto_ticket_url")
+  estado        String    @default("PENDIENTE") // PENDIENTE, APROBADO, RECHAZADO
 
   registradoPorId String @map("registrado_por_id")
+  aprobadoPorId   String? @map("aprobado_por_id")
 
   createdAt     DateTime  @default(now()) @map("created_at")
 
@@ -510,9 +517,13 @@ model Incidencia {
   obraId        String           @map("obra_id")
   gravedad      Gravedad
   estado        EstadoIncidencia @default(ABIERTA)
+  categoria     String?          // ELECTRICA, ESTRUCTURAL, ESTETICA, DOCUMENTAL, GARANTIA
   descripcion   String
   fotoUrl       String?          @map("foto_url")
   notasResolucion String?        @map("notas_resolucion")
+
+  activoId      String?          @map("activo_id")
+  slaHoras      Int?             @map("sla_horas") // SLA en horas según gravedad
 
   creadoPorId   String?          @map("creado_por_id")
   asignadoAId   String?          @map("asignado_a_id")
@@ -524,6 +535,7 @@ model Incidencia {
   updatedAt     DateTime         @updatedAt @map("updated_at")
 
   obra          Obra             @relation(fields: [obraId], references: [id])
+  activo        ActivoInstalado? @relation(fields: [activoId], references: [id])
   creadoPor     Usuario?         @relation("IncidenciaCreador", fields: [creadoPorId], references: [id])
   asignadoA     Usuario?         @relation("IncidenciaAsignado", fields: [asignadoAId], references: [id])
 
@@ -597,6 +609,7 @@ model ActivoInstalado {
 
   obra          Obra      @relation(fields: [obraId], references: [id])
   mantenimientos Mantenimiento[]
+  incidencias   Incidencia[]
 
   @@map("activos_instalados")
 }

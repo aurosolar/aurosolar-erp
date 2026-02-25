@@ -34,7 +34,8 @@ const ESTADOS_COLOR: Record<string, string> = {
   TERMINADA: 'bg-green-50 text-green-600',
   LEGALIZACION: 'bg-cyan-50 text-cyan-700',
   FINALIZADA: 'bg-emerald-50 text-emerald-700',
-  INCIDENCIA: 'bg-red-50 text-red-600',
+  VALIDACION_OPERATIVA: 'bg-purple-50 text-purple-600',
+  REVISION_COORDINADOR: 'bg-purple-50 text-purple-600',
 };
 
 const fmtMoney = (n: number | null) => n != null ? `${n.toLocaleString('es-ES')}€` : '—';

@@ -38,6 +38,7 @@ const crearObraSchema = z.object({
   bateriaKwh: z.number().positive().optional(),
   presupuestoTotal: z.number().int().min(0), // Céntimos
   comercialId: z.string().uuid().optional(),
+  instaladorIds: z.array(z.string().uuid()).optional(),
   notas: z.string().optional(),
 });
 

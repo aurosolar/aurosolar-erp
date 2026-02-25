@@ -43,7 +43,7 @@ export default function CampoHomePage() {
       if (data.ok) {
         // Filtrar solo obras activas del instalador
         setObras(data.data.obras.filter((o: ObraCampo) =>
-          ['PROGRAMADA', 'INSTALANDO', 'INCIDENCIA', 'TERMINADA'].includes(o.estado)
+          ['PROGRAMADA', 'INSTALANDO', 'VALIDACION_OPERATIVA', 'TERMINADA'].includes(o.estado)
         ));
       }
     } catch (err) {

@@ -87,6 +87,7 @@ const PERMISOS: Record<string, Permiso> = {
   'obras:crear':      { roles: ['ADMIN', 'DIRECCION', 'COMERCIAL', 'JEFE_INSTALACIONES'] },
   'obras:editar':     { roles: ['ADMIN', 'DIRECCION', 'JEFE_INSTALACIONES'] },
   'obras:cambiarEstado': { roles: ['ADMIN', 'DIRECCION', 'JEFE_INSTALACIONES', 'ADMINISTRACION'] },
+  'obras:override':   { roles: ['ADMIN', 'JEFE_INSTALACIONES'] }, // Override de reglas de transición
   'obras:eliminar':   { roles: ['ADMIN'] },
 
   'cobros:ver':       { roles: ['ADMIN', 'DIRECCION', 'ADMINISTRACION'] },
