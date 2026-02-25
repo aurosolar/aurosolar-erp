@@ -11,10 +11,14 @@ const incidenciaSchema = z.object({
   gravedad: z.enum(['BAJA', 'MEDIA', 'ALTA', 'CRITICA']),
   descripcion: z.string().min(5, 'Descripción muy corta'),
   fotoUrl: z.string().optional(),
+  categoria: z.string().optional(),
 });
 
 export const POST = withAuth('incidencias:crear', async (req, { usuario }) => {
   const input = await incidenciaSchema.parseAsync(await req.json());
+
+  // SLA automático por gravedad
+  const slaMap: Record<string, number> = { BAJA: 72, MEDIA: 48, ALTA: 24, CRITICA: 4 };
 
   const incidencia = await prisma.incidencia.create({
     data: {
@@ -22,30 +26,19 @@ export const POST = withAuth('incidencias:crear', async (req, { usuario }) => {
       gravedad: input.gravedad,
       descripcion: input.descripcion,
       fotoUrl: input.fotoUrl,
+      categoria: input.categoria,
+      slaHoras: slaMap[input.gravedad],
       creadoPorId: usuario.id,
       estado: 'ABIERTA',
     },
   });
 
-  // Si gravedad es ALTA o CRITICA, cambiar estado de obra a INCIDENCIA
-  if (['ALTA', 'CRITICA'].includes(input.gravedad)) {
-    const obra = await prisma.obra.findUnique({ where: { id: input.obraId } });
-    if (obra && obra.estado !== 'INCIDENCIA') {
-      await prisma.obra.update({
-        where: { id: input.obraId },
-        data: { estado: 'INCIDENCIA' },
-      });
-      await prisma.actividad.create({
-        data: {
-          obraId: input.obraId,
-          usuarioId: usuario.id,
-          accion: 'ESTADO_CAMBIADO',
-          entidad: 'obra',
-          entidadId: input.obraId,
-          detalle: JSON.stringify({ estadoAnterior: obra.estado, nuevoEstado: 'INCIDENCIA', motivo: `Incidencia ${input.gravedad}` }),
-        },
-      });
-    }
+  // Si gravedad es CRITICA, activar flag en la obra (no cambiar estado)
+  if (input.gravedad === 'CRITICA') {
+    await prisma.obra.update({
+      where: { id: input.obraId },
+      data: { tieneIncidenciaCritica: true },
+    });
   }
 
   // Registrar actividad

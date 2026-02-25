@@ -398,7 +398,7 @@ export function getTransicionesDisponibles(estadoActual: EstadoObra, rolUsuario:
   // Si el rol puede hacer override, mostrar todos los estados posibles
   if (ROLES_OVERRIDE.includes(rolUsuario)) {
     const todos = Object.values(TRANSICIONES_VALIDAS).flat();
-    const unicos = [...new Set(todos)].filter(e => e !== estadoActual);
+    const unicos = Array.from(new Set(todos)).filter(e => e !== estadoActual);
     return unicos as EstadoObra[];
   }
 
