@@ -38,6 +38,8 @@ const NAV_ITEMS = [
   { label: 'Sistema', items: [
     { href: '/usuarios', icon: '👥', text: 'Usuarios', roles: ['ADMIN'] },
     { href: '/auditoria', icon: '📜', text: 'Auditoría', roles: ['ADMIN','DIRECCION'] },
+    { href: '/comisiones', icon: '💶', text: 'Comisiones', roles: ['ADMIN','DIRECCION'] },
+    { href: '/exportar', icon: '📥', text: 'Exportar / GDPR', roles: ['ADMIN','DIRECCION'] },
     { href: '/configuracion', icon: '⚙️', text: 'Configuración', roles: ['ADMIN','DIRECCION'] },
   ]},
 ];

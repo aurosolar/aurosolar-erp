@@ -57,6 +57,7 @@ model Usuario {
   documentosSubidos  Documento[]
   actividadesUsuario Actividad[]
   subvencionesResponsable Subvencion[] @relation("SubvencionResponsable")
+  checklistCreados ChecklistValidacion[] @relation("ChecklistCreador")
   leadsAsignados     Lead[]
   visitasComercial   Visita[]
   sesiones           Session[]
@@ -274,6 +275,7 @@ model Obra {
   lead              Lead?
   comision          Comision?
   subvenciones      Subvencion[]
+  checklistValidaciones ChecklistValidacion[]
 
   @@map("obras")
 }
@@ -741,4 +743,58 @@ model Subvencion {
   @@index([obraId])
   @@index([estado])
   @@map("subvenciones")
+}
+
+// ── Validación avanzada ──
+enum ResultadoValidacion {
+  OK
+  OK_CON_OBS
+  NO_OK
+  BORRADOR
+}
+
+model ChecklistValidacion {
+  id            String              @id @default(uuid())
+  obraId        String              @map("obra_id")
+  resultado     ResultadoValidacion @default(BORRADOR)
+  // Configuración instalada (confirmada o editada)
+  panelConfirmado    Boolean        @default(true) @map("panel_confirmado")
+  kWpReal            Float?         @map("kwp_real")
+  panelesReal        Int?           @map("paneles_real")
+  inversorReal       String?        @map("inversor_real")
+  bateriaReal        String?        @map("bateria_real")
+  estructuraReal     String?        @map("estructura_real")
+  // Seriales
+  serialInversor     String?        @map("serial_inversor")
+  serialBateria      String?        @map("serial_bateria")
+  serialSmartMeter   String?        @map("serial_smart_meter")
+  // Observaciones
+  observaciones      String?
+  // Fotos URLs (JSON array)
+  fotosJson          String?        @map("fotos_json")
+
+  creadoPorId   String              @map("creado_por_id")
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime            @updatedAt @map("updated_at")
+
+  obra          Obra                @relation(fields: [obraId], references: [id])
+  creadoPor     Usuario             @relation("ChecklistCreador", fields: [creadoPorId], references: [id])
+  items         ChecklistItem[]
+
+  @@index([obraId])
+  @@map("checklist_validaciones")
+}
+
+model ChecklistItem {
+  id              String   @id @default(uuid())
+  checklistId     String   @map("checklist_id")
+  codigo          String   // INV_ARRANCA, PRODUCCION_OK, etc.
+  pregunta        String
+  critico         Boolean  @default(false)
+  respuesta       String?  // SI, NO, NA
+  notas           String?
+
+  checklist       ChecklistValidacion @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+
+  @@map("checklist_items")
 }
