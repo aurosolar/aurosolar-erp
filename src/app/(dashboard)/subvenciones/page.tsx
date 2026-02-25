@@ -1,6 +1,6 @@
 // src/app/(dashboard)/subvenciones/page.tsx
 'use client';
-
+import BuscadorObras from '@/components/ui/BuscadorObras';
 import { useState, useEffect, useCallback } from 'react';
 
 interface Subvencion {
@@ -55,7 +55,7 @@ export default function SubvencionesPage() {
       fetch(`/api/subvenciones${params}`).then(r => r.json()),
       fetch('/api/subvenciones/resumen').then(r => r.json()),
     ]);
-    if (rSubs.ok) setSubs(rSubs.data);
+    if (rSubs.ok) setSubs(Array.isArray(rSubs.data) ? rSubs.data : rSubs.data.data || []);
     if (rResumen.ok) setResumen(rResumen.data);
     setLoading(false);
   }, [filtroEstado]);
@@ -172,15 +172,9 @@ export default function SubvencionesPage() {
 }
 
 function FormSubvencion({ onClose, onGuardado }: { onClose: () => void; onGuardado: () => void }) {
-  const [obras, setObras] = useState<Array<{ id: string; codigo: string }>>([]);
   const [form, setForm] = useState({ obraId: '', tipo: 'NEXT_GENERATION', programa: '', convocatoria: '', importeSolicitado: '', fechaLimite: '', notas: '' });
   const [guardando, setGuardando] = useState(false);
 
-  useEffect(() => {
-    fetch('/api/obras').then(r => r.json()).then(d => {
-      if (d.ok) setObras(d.data.map((o: any) => ({ id: o.id, codigo: o.codigo })));
-    });
-  }, []);
 
   const onChange = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
 
@@ -209,11 +203,9 @@ function FormSubvencion({ onClose, onGuardado }: { onClose: () => void; onGuarda
           <div className="space-y-3">
             <div>
               <label className="block text-[10px] font-bold text-auro-navy/30 uppercase mb-1">Obra</label>
-              <select value={form.obraId} onChange={e => onChange('obraId', e.target.value)}
-                className="w-full h-10 px-3 bg-auro-surface-2 border border-auro-border rounded-input text-sm">
-                <option value="">Selecciona obra...</option>
-                {obras.map(o => <option key={o.id} value={o.id}>{o.codigo}</option>)}
-              </select>
+  <div>
+              <BuscadorObras value={form.obraId} onChange={v => onChange('obraId', v)} />
+            </div>
             </div>
 
             <div>

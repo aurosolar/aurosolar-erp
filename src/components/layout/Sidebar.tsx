@@ -86,8 +86,8 @@ const NAV_ITEMS: NavGroup[] = [
       { href: '/auditoria', icon: '📜', text: 'Auditoría', roles: ['ADMIN', 'DIRECCION'] },
       { href: '/exportar', icon: '📥', text: 'Exportar / GDPR', roles: ['ADMIN', 'DIRECCION'] },
       { href: '/configuracion', icon: '⚙️', text: 'Configuración', roles: ['ADMIN', 'DIRECCION'] },
-      { href: '/branding', icon: '🎨', text: 'Branding', roles: ['ADMIN'] },
-    ],
+ { href: '/branding', icon: '🎨', text: 'Branding', roles: ['ADMIN'] },    
+],
   },
 ];
 

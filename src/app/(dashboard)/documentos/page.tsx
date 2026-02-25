@@ -1,6 +1,6 @@
 // src/app/(dashboard)/documentos/page.tsx
 'use client';
-
+import BuscadorObras from '@/components/ui/BuscadorObras';
 import { useState, useEffect, useCallback, useRef } from 'react';
 
 interface Doc {
@@ -173,7 +173,6 @@ export default function DocumentosPage() {
 }
 
 function UploadModal({ onClose, onSubido }: { onClose: () => void; onSubido: () => void }) {
-  const [obras, setObras] = useState<Array<{ id: string; codigo: string }>>([]);
   const [obraId, setObraId] = useState('');
   const [tipo, setTipo] = useState('FOTO_GENERAL');
   const [descripcion, setDescripcion] = useState('');
@@ -183,11 +182,6 @@ function UploadModal({ onClose, onSubido }: { onClose: () => void; onSubido: () 
   const [progreso, setProgreso] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    fetch('/api/obras').then(r => r.json()).then(d => {
-      if (d.ok) setObras(d.data.map((o: any) => ({ id: o.id, codigo: o.codigo })));
-    });
-  }, []);
 
   function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     if (e.target.files) setFiles(Array.from(e.target.files));
@@ -218,11 +212,9 @@ function UploadModal({ onClose, onSubido }: { onClose: () => void; onSubido: () 
 
           <div className="mb-3">
             <label className="block text-[10px] font-bold text-auro-navy/30 uppercase mb-1">Obra</label>
-            <select value={obraId} onChange={e => setObraId(e.target.value)}
-              className="w-full h-10 px-3 bg-auro-surface-2 border border-auro-border rounded-input text-sm focus:outline-none focus:border-auro-orange/40">
-              <option value="">Selecciona obra...</option>
-              {obras.map(o => <option key={o.id} value={o.id}>{o.codigo}</option>)}
-            </select>
+<div className="mb-3">
+            <BuscadorObras value={obraId} onChange={v => setObraId(v)} />
+          </div>
           </div>
 
           <div className="mb-3">

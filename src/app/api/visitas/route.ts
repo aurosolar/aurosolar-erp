@@ -11,7 +11,7 @@ const visitaSchema = z.object({
 });
 
 export const POST = withAuth('crm:crear', async (req, { usuario }) => {
-  const input = await parseBody(req, visitaSchema);
+  const input = await parseBody(req, visitaSchema as any) as any;
   const visita = await crmService.registrarVisita(input, usuario.id);
   return apiOk(visita, 201);
 });

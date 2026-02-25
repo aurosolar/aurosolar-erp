@@ -1,5 +1,6 @@
 // src/app/(dashboard)/activos/page.tsx
 'use client';
+import BuscadorObras from '@/components/ui/BuscadorObras';
 
 import { useState, useEffect, useCallback } from 'react';
 
@@ -268,7 +269,6 @@ function DetalleModal({ activo, onClose, onMant, onRefresh }: {
 
 // ── Modal Crear Activo ──
 function CrearActivoModal({ onClose, onCreado }: { onClose: () => void; onCreado: () => void }) {
-  const [obras, setObras] = useState<Array<{ id: string; codigo: string }>>([]);
   const [form, setForm] = useState({
     obraId: '', tipo: 'Panel', marca: '', modelo: '',
     numeroSerie: '', potencia: '', garantiaAnios: '25',
@@ -277,9 +277,6 @@ function CrearActivoModal({ onClose, onCreado }: { onClose: () => void; onCreado
   const [error, setError] = useState('');
 
   useEffect(() => {
-    fetch('/api/obras').then(r => r.json()).then(d => {
-      if (d.ok) setObras(d.data.map((o: any) => ({ id: o.id, codigo: o.codigo })));
-    });
   }, []);
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
@@ -310,15 +307,9 @@ function CrearActivoModal({ onClose, onCreado }: { onClose: () => void; onCreado
           <h3 className="text-base font-bold mb-4">Registrar activo</h3>
           {error && <div className="mb-3 p-2.5 bg-estado-red/10 text-estado-red text-xs font-semibold rounded-xl">{error}</div>}
 
-          <div className="mb-3">
-            <label className="block text-[10px] font-bold text-auro-navy/30 uppercase mb-1">Obra</label>
-            <select value={form.obraId} onChange={e => set('obraId', e.target.value)}
-              className="w-full h-10 px-3 bg-auro-surface-2 border border-auro-border rounded-input text-sm focus:outline-none focus:border-auro-orange/40">
-              <option value="">Selecciona obra...</option>
-              {obras.map(o => <option key={o.id} value={o.id}>{o.codigo}</option>)}
-            </select>
+<div className="mb-3">
+            <BuscadorObras value={form.obraId} onChange={v => set('obraId', v)} />
           </div>
-
           <div className="mb-3">
             <label className="block text-[10px] font-bold text-auro-navy/30 uppercase mb-1.5">Tipo</label>
             <div className="grid grid-cols-4 gap-1.5">

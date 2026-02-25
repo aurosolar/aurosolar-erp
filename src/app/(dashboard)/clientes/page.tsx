@@ -14,7 +14,7 @@ interface Cliente {
 interface ClienteDetalle extends Cliente {
   obras: Array<{
     id: string; codigo: string; estado: string; tipo: string;
-    presupuesto: number | null; localidad: string | null; createdAt: string;
+    presupuestoTotal: number | null; localidad: string | null; createdAt: string;
     pagos: Array<{ importe: number }>;
   }>;
   leads: Array<{

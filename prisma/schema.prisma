@@ -814,7 +814,7 @@ model ConfigSistema {
   colorPrimario String   @default("#F58216") @map("color_primario")
   colorSecundario String @default("#1A2E4A") @map("color_secundario")
   colorAccent   String   @default("#F58216") @map("color_accent")
-
+branding      Json?     @default("{}")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
   @@map("config_sistema")
@@ -877,7 +877,7 @@ model Trato {
   id              String       @id @default(uuid())
   contactoId      String       @map("contacto_id")
   titulo          String
-  estado          EstadoTrato  @default(NUEVO)
+  estado          EstadoTrato  @default(NUEVO_CONTACTO)
   importe         Int?         // Céntimos
   tipo            TipoInstalacion?
   potenciaEstimada Float?      @map("potencia_estimada")

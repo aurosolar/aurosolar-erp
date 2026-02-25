@@ -136,9 +136,6 @@ const PERMISOS: Record<string, Permiso> = {
   'tratos:crear':     { roles: ['ADMIN', 'DIRECCION', 'COMERCIAL'] },
   'tratos:editar':    { roles: ['ADMIN', 'DIRECCION', 'COMERCIAL'] },
   'tratos:convertir': { roles: ['ADMIN', 'DIRECCION'] },
-  'tareas-crm:ver':   { roles: ['ADMIN', 'DIRECCION', 'COMERCIAL'] },
-  'tareas-crm:crear': { roles: ['ADMIN', 'DIRECCION', 'COMERCIAL'] },
-  'tareas-crm:editar':{ roles: ['ADMIN', 'DIRECCION', 'COMERCIAL'] },
 
   'exportar:ver':     { roles: ['ADMIN', 'DIRECCION'] },
   'comisiones:ver':   { roles: ['ADMIN', 'DIRECCION'] },
