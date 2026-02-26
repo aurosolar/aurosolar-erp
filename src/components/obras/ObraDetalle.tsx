@@ -1,8 +1,11 @@
 // src/components/obras/ObraDetalle.tsx
-// Sprint 1: Nuevo flujo de estados, tabs completas, asignación instaladores
+// Sprint 2: Motor de gates integrado, TERMINADA eliminado
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { GateBlocker } from './GateBlocker';
+import { OverrideModal } from './OverrideModal';
+import { ChecklistReview } from './ChecklistReview';
 
 interface ObraDetalleData {
   id: string;
@@ -34,12 +37,40 @@ interface ObraDetalleData {
   cliente: { nombre: string; apellidos: string; telefono: string | null; email: string | null; direccion: string | null };
   comercial: { id: string; nombre: string; apellidos: string } | null;
   instaladores: Array<{ instalador: { id: string; nombre: string; apellidos: string }; esJefe: boolean }>;
-  planPagos: Array<{ id: string; concepto: string; importe: number; pagado: boolean; fechaPrevista: string | null }>;
+  planPagos: Array<{ id: string; concepto: string; importe: number; pagado: boolean; fechaPrevista: string | null; requiereParaEstado: string | null }>;
   pagos: Array<{ id: string; importe: number; metodo: string; fechaCobro: string; concepto: string | null; registradoPor: { nombre: string } }>;
   actividades: Array<{ accion: string; detalle: string | null; createdAt: string; usuario: { nombre: string } }>;
   incidencias: Array<{ id: string; gravedad: string; estado: string; descripcion: string; categoria: string | null; createdAt: string }>;
   documentos: Array<{ id: string; tipo: string; nombre: string; createdAt: string }>;
   gastos: Array<{ id: string; tipo: string; importe: number; descripcion: string | null; estado: string; createdAt: string }>;
+  checklistValidaciones?: Array<{
+    id: string;
+    status: string;
+    resultado: string;
+    serialInversor: string | null;
+    serialBateria: string | null;
+    observaciones: string | null;
+    reviewNotes: string | null;
+    reviewDecision: string | null;
+    submittedBy: { nombre: string; apellidos: string } | null;
+    reviewedBy: { nombre: string; apellidos: string } | null;
+    items: Array<{ codigo: string; critico: boolean; respuesta: string | null; label: string }>;
+  }>;
+}
+
+interface GateResult {
+  gate: string;
+  passed: boolean;
+  reason?: string;
+  action?: { type: string; target?: string; field?: string; label: string };
+}
+
+interface TransitionEvaluation {
+  allowed: boolean;
+  isOverride: boolean;
+  gates: GateResult[];
+  reasons: string[];
+  actions: Array<{ type: string; target?: string; field?: string; label: string }>;
 }
 
 const ESTADO_CONFIG: Record<string, { label: string; icon: string; bgClass: string; textClass: string }> = {
@@ -50,28 +81,38 @@ const ESTADO_CONFIG: Record<string, { label: string; icon: string; bgClass: stri
   INSTALANDO:            { label: 'Instalando',           icon: '⚡', bgClass: 'bg-estado-amber/10',  textClass: 'text-estado-amber' },
   VALIDACION_OPERATIVA:  { label: 'Validación operativa', icon: '✅', bgClass: 'bg-estado-purple/10', textClass: 'text-estado-purple' },
   REVISION_COORDINADOR:  { label: 'Revisión coordinador', icon: '👷', bgClass: 'bg-estado-purple/10', textClass: 'text-estado-purple' },
-  TERMINADA:             { label: 'Terminada',            icon: '✅', bgClass: 'bg-estado-green/10',  textClass: 'text-estado-green' },
   LEGALIZACION:          { label: 'Legalización',         icon: '📋', bgClass: 'bg-estado-blue/10',   textClass: 'text-estado-blue' },
   LEGALIZADA:            { label: 'Legalizada',           icon: '✅', bgClass: 'bg-estado-green/10',  textClass: 'text-estado-green' },
   COMPLETADA:            { label: 'Completada',           icon: '🏆', bgClass: 'bg-estado-green/10',  textClass: 'text-estado-green' },
   CANCELADA:             { label: 'Cancelada',            icon: '❌', bgClass: 'bg-estado-red/10',    textClass: 'text-estado-red' },
 };
 
-type TabId = 'info' | 'pagos' | 'documentos' | 'timeline' | 'incidencias';
+type TabId = 'info' | 'pagos' | 'documentos' | 'timeline' | 'incidencias' | 'validacion';
 
 interface Props {
   obraId: string;
+  userRol?: string;
   onClose: () => void;
   onUpdate: () => void;
 }
 
-export function ObraDetalle({ obraId, onClose, onUpdate }: Props) {
+export function ObraDetalle({ obraId, userRol = 'ADMIN', onClose, onUpdate }: Props) {
   const [obra, setObra] = useState<ObraDetalleData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<TabId>('info');
+
+  // Gate engine state
+  const [estadoTarget, setEstadoTarget] = useState<string | null>(null);
+  const [evaluation, setEvaluation] = useState<TransitionEvaluation | null>(null);
+  const [evaluating, setEvaluating] = useState(false);
+  const [showOverride, setShowOverride] = useState(false);
   const [cambiandoEstado, setCambiandoEstado] = useState(false);
   const [notaCambio, setNotaCambio] = useState('');
   const [errorCambio, setErrorCambio] = useState('');
-  const [tab, setTab] = useState<TabId>('info');
+  const [successMsg, setSuccessMsg] = useState('');
+
+  const canOverride = ['ADMIN', 'JEFE_INSTALACIONES'].includes(userRol);
+  const canReview = ['ADMIN', 'DIRECCION', 'JEFE_INSTALACIONES'].includes(userRol);
 
   useEffect(() => { fetchObra(); }, [obraId]);
 
@@ -85,340 +126,460 @@ export function ObraDetalle({ obraId, onClose, onUpdate }: Props) {
     finally { setLoading(false); }
   }
 
-  async function cambiarEstado(nuevoEstado: string, override = false) {
+  // ── Pre-evaluar transición (GET evaluate-transition) ──
+  const evaluateTransition = useCallback(async (targetEstado: string) => {
+    setEstadoTarget(targetEstado);
+    setEvaluation(null);
+    setEvaluating(true);
+    setErrorCambio('');
+    setSuccessMsg('');
+
+    try {
+      const res = await fetch(`/api/obras/${obraId}/evaluate-transition?to=${targetEstado}`);
+      const data = await res.json();
+      if (data.ok) {
+        setEvaluation(data.data);
+        // Si está permitido, mostrar confirmación directa
+        if (data.data.allowed) {
+          // Nada extra — el UI muestra botón de confirmar
+        }
+      } else {
+        setErrorCambio(data.error || 'Error al evaluar transición');
+      }
+    } catch (err) {
+      setErrorCambio('Error de conexión');
+    } finally {
+      setEvaluating(false);
+    }
+  }, [obraId]);
+
+  // ── Ejecutar cambio de estado (PATCH) ──
+  async function ejecutarCambio(override = false) {
+    if (!estadoTarget) return;
     setCambiandoEstado(true);
     setErrorCambio('');
+
     try {
+      const body: any = { estado: estadoTarget };
+      if (notaCambio.trim()) body.nota = notaCambio.trim();
+      if (override) body.override = true;
+
       const res = await fetch(`/api/obras/${obraId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ estado: nuevoEstado, nota: notaCambio || undefined, override }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
+
       if (data.ok) {
+        const cfg = ESTADO_CONFIG[estadoTarget];
+        setSuccessMsg(`${cfg?.icon || '✅'} Cambiado a ${cfg?.label || estadoTarget}${override ? ' (override)' : ''}`);
+        setEstadoTarget(null);
+        setEvaluation(null);
         setNotaCambio('');
-        fetchObra();
+        setShowOverride(false);
+        await fetchObra();
         onUpdate();
+      } else if (res.status === 422 && data.data) {
+        // Gates fallidos — actualizar evaluación
+        setEvaluation(data.data);
       } else {
-        setErrorCambio(data.error);
+        setErrorCambio(data.error || 'Error al cambiar estado');
       }
-    } catch { setErrorCambio('Error de conexión'); }
-    finally { setCambiandoEstado(false); }
+    } catch (err) {
+      setErrorCambio('Error de conexión');
+    } finally {
+      setCambiandoEstado(false);
+    }
   }
 
-  const fmt = (c: number) => (c / 100).toLocaleString('es-ES', { minimumFractionDigits: 0 }) + '€';
-  const fmtFecha = (f: string) => new Date(f).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
-  const fmtFechaHora = (f: string) => new Date(f).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  function resetEstadoUI() {
+    setEstadoTarget(null);
+    setEvaluation(null);
+    setNotaCambio('');
+    setErrorCambio('');
+    setShowOverride(false);
+  }
 
-  const tabs: { id: TabId; label: string; badge?: number }[] = [
-    { id: 'info', label: '📋 Info' },
-    { id: 'pagos', label: '💰 Pagos' },
-    { id: 'documentos', label: '📄 Docs' },
-    { id: 'timeline', label: '📝 Actividad' },
-    { id: 'incidencias', label: '⚠️ Incidencias', badge: obra?.incidenciasAbiertas },
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="w-8 h-8 border-2 border-auro-orange/30 border-t-auro-orange rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!obra) {
+    return <div className="text-center text-auro-navy/40 py-12">Obra no encontrada</div>;
+  }
+
+  const estadoCfg = ESTADO_CONFIG[obra.estado] || { label: obra.estado, icon: '❓', bgClass: 'bg-gray-100', textClass: 'text-gray-600' };
+
+  // Tabs con validación visible si procede
+  const tabs: { id: TabId; label: string; icon: string }[] = [
+    { id: 'info', label: 'Info', icon: '📋' },
+    { id: 'pagos', label: 'Pagos', icon: '💰' },
+    { id: 'documentos', label: 'Docs', icon: '📄' },
+    { id: 'timeline', label: 'Timeline', icon: '📊' },
+    { id: 'incidencias', label: 'Incidencias', icon: '⚠️' },
   ];
+  // Mostrar tab validación si hay checklist o estado lo requiere
+  if (obra.checklistValidaciones?.length || ['VALIDACION_OPERATIVA', 'REVISION_COORDINADOR'].includes(obra.estado)) {
+    tabs.push({ id: 'validacion', label: 'Validación', icon: '✅' });
+  }
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center pt-8 lg:pt-12 px-4 overflow-y-auto" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl mb-10" onClick={(e) => e.stopPropagation()}>
-        {loading || !obra ? (
-          <div className="p-12 text-center">
-            <div className="w-8 h-8 border-3 border-auro-orange/20 border-t-auro-orange rounded-full animate-spin mx-auto" />
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-auro-border bg-white">
+        <div className="flex items-center gap-3">
+          <button onClick={onClose} className="text-auro-navy/40 hover:text-auro-navy transition-colors">
+            ← Volver
+          </button>
+          <h2 className="font-bold text-auro-navy">{obra.codigo}</h2>
+          <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${estadoCfg.bgClass} ${estadoCfg.textClass}`}>
+            {estadoCfg.icon} {estadoCfg.label}
+          </span>
+          {obra.tieneIncidenciaCritica && (
+            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-estado-red/10 text-estado-red">
+              🚨 Incidencia crítica
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 px-4 py-2 border-b border-auro-border bg-auro-surface overflow-x-auto">
+        {tabs.map(t => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
+              tab === t.id ? 'bg-auro-orange text-white' : 'text-auro-navy/60 hover:bg-auro-surface-2'
+            }`}
+          >
+            {t.icon} {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+
+        {/* Success message */}
+        {successMsg && (
+          <div className="bg-estado-green/10 border border-estado-green/20 rounded-xl px-4 py-3 text-sm text-estado-green font-medium flex items-center justify-between">
+            <span>{successMsg}</span>
+            <button onClick={() => setSuccessMsg('')} className="text-estado-green/60 hover:text-estado-green">✕</button>
           </div>
-        ) : (
-          <>
-            {/* Header */}
-            <div className="p-5 border-b border-auro-border flex items-start justify-between">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs font-bold text-auro-orange">{obra.codigo}</span>
-                  {obra.tieneIncidenciaCritica && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-estado-red/10 text-estado-red">
-                      ⚠️ Incidencia crítica
-                    </span>
-                  )}
-                </div>
-                <h3 className="text-lg font-bold text-auro-navy truncate">
-                  {obra.cliente.nombre} {obra.cliente.apellidos}
-                </h3>
-                {obra.direccionInstalacion && (
-                  <p className="text-xs text-auro-navy/40 mt-0.5">📍 {obra.direccionInstalacion}{obra.localidad ? `, ${obra.localidad}` : ''}</p>
+        )}
+
+        {/* ═══ CAMBIO DE ESTADO (siempre visible arriba) ═══ */}
+        {obra.transicionesDisponibles.length > 0 && (
+          <div className="bg-white border border-auro-border rounded-xl p-4 space-y-3">
+            <h3 className="text-xs font-bold text-auro-navy/60 uppercase">Cambiar estado</h3>
+
+            {/* Botones de transiciones disponibles */}
+            {!estadoTarget && (
+              <div className="flex flex-wrap gap-2">
+                {obra.transicionesDisponibles.map(est => {
+                  const cfg = ESTADO_CONFIG[est];
+                  if (!cfg) return null;
+                  return (
+                    <button
+                      key={est}
+                      onClick={() => evaluateTransition(est)}
+                      className="px-3 py-2 rounded-lg border border-auro-border text-xs font-medium hover:border-auro-orange/40 hover:bg-auro-orange/5 transition-colors min-h-[44px]"
+                    >
+                      {cfg.icon} {cfg.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Evaluando... */}
+            {evaluating && (
+              <div className="flex items-center gap-2 text-sm text-auro-navy/40">
+                <div className="w-4 h-4 border-2 border-auro-orange/30 border-t-auro-orange rounded-full animate-spin" />
+                Evaluando requisitos...
+              </div>
+            )}
+
+            {/* Resultado de evaluación */}
+            {estadoTarget && evaluation && !evaluating && (
+              <div className="space-y-3">
+                {evaluation.allowed ? (
+                  /* ✅ Gates pasan — confirmar */
+                  <div className="space-y-3">
+                    <div className="text-sm text-estado-green font-medium">
+                      ✅ Todos los requisitos cumplidos para {ESTADO_CONFIG[estadoTarget]?.label}
+                    </div>
+
+                    {/* Campo nota (obligatorio para cancelación/reapertura, opcional para el resto) */}
+                    {(estadoTarget === 'CANCELADA' || (obra.estado === 'CANCELADA' && estadoTarget === 'REVISION_TECNICA')) ? (
+                      <textarea
+                        value={notaCambio}
+                        onChange={(e) => setNotaCambio(e.target.value)}
+                        placeholder="Motivo obligatorio (mín. 10 caracteres)"
+                        rows={2}
+                        className="w-full px-3 py-2 bg-auro-surface-2 border border-auro-border rounded-lg text-sm placeholder-auro-navy/25 focus:outline-none focus:border-auro-orange/40"
+                      />
+                    ) : (
+                      <input
+                        value={notaCambio}
+                        onChange={(e) => setNotaCambio(e.target.value)}
+                        placeholder="Nota opcional"
+                        className="w-full h-10 px-3 bg-auro-surface-2 border border-auro-border rounded-lg text-sm placeholder-auro-navy/25 focus:outline-none focus:border-auro-orange/40"
+                      />
+                    )}
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => ejecutarCambio(false)}
+                        disabled={cambiandoEstado}
+                        className="flex-1 h-11 bg-auro-orange hover:bg-auro-orange-dark text-white font-bold rounded-lg text-sm transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+                      >
+                        {cambiandoEstado ? (
+                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : (
+                          <>{ESTADO_CONFIG[estadoTarget]?.icon} Confirmar cambio</>
+                        )}
+                      </button>
+                      <button onClick={resetEstadoUI} className="px-4 h-11 border border-auro-border rounded-lg text-sm text-auro-navy/60 hover:bg-auro-surface-2">
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* ❌ Gates fallidos — mostrar GateBlocker */
+                  <div className="space-y-3">
+                    <GateBlocker
+                      gates={evaluation.gates}
+                      estadoTarget={estadoTarget}
+                      estadoLabel={ESTADO_CONFIG[estadoTarget]?.label || estadoTarget}
+                      canOverride={canOverride}
+                      onOverride={() => setShowOverride(true)}
+                      onCancel={resetEstadoUI}
+                    />
+                  </div>
                 )}
               </div>
-              <button onClick={onClose} className="w-8 h-8 rounded-full bg-auro-surface-2 hover:bg-auro-surface-3 flex items-center justify-center text-lg transition-colors shrink-0 ml-3">✕</button>
-            </div>
+            )}
 
-            {/* Estado actual + cambiar */}
-            <div className="p-5 bg-auro-surface-2/50 border-b border-auro-border">
-              <div className="flex items-center gap-3 mb-3">
-                <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-bold ${ESTADO_CONFIG[obra.estado]?.bgClass || ''} ${ESTADO_CONFIG[obra.estado]?.textClass || ''}`}>
-                  {ESTADO_CONFIG[obra.estado]?.icon} {ESTADO_CONFIG[obra.estado]?.label || obra.estado}
-                </span>
-                <span className="text-xs text-auro-navy/30">
-                  {obra.fechaInicio && `Inicio: ${fmtFecha(obra.fechaInicio)}`}
-                </span>
+            {errorCambio && (
+              <div className="bg-estado-red/10 border border-estado-red/20 rounded-xl px-3 py-2 text-xs text-estado-red font-medium">
+                ⚠️ {errorCambio}
               </div>
+            )}
+          </div>
+        )}
 
-              {obra.transicionesDisponibles.length > 0 && (
-                <div>
-                  <div className="text-xs font-semibold text-auro-navy/40 mb-2">Cambiar estado:</div>
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {obra.transicionesDisponibles.map((est) => (
-                      <button
-                        key={est}
-                        onClick={() => cambiarEstado(est)}
-                        disabled={cambiandoEstado}
-                        className="h-8 px-3 rounded-lg text-xs font-semibold bg-white border border-auro-border hover:border-auro-orange hover:text-auro-orange transition-colors disabled:opacity-50"
-                      >
-                        {ESTADO_CONFIG[est]?.icon || ''} {ESTADO_CONFIG[est]?.label || est}
-                      </button>
-                    ))}
-                  </div>
-                  <input
-                    type="text"
-                    value={notaCambio}
-                    onChange={(e) => setNotaCambio(e.target.value)}
-                    placeholder="Nota del cambio (opcional)..."
-                    className="w-full h-8 px-3 text-xs bg-white border border-auro-border rounded-lg placeholder-auro-navy/25 focus:outline-none focus:border-auro-orange/40"
-                  />
-                  {errorCambio && (
-                    <div className="mt-2 text-xs text-estado-red bg-estado-red/5 border border-estado-red/10 rounded-lg px-3 py-2">
-                      ⚠️ {errorCambio}
-                    </div>
-                  )}
-                </div>
-              )}
+        {/* ═══ TAB CONTENT ═══ */}
+        {tab === 'info' && (
+          <div className="space-y-4">
+            {/* Cliente */}
+            <div className="bg-white border border-auro-border rounded-xl p-4">
+              <h3 className="text-xs font-bold text-auro-navy/60 uppercase mb-2">Cliente</h3>
+              <p className="font-medium text-auro-navy">{obra.cliente.nombre} {obra.cliente.apellidos}</p>
+              {obra.cliente.telefono && <p className="text-sm text-auro-navy/60">{obra.cliente.telefono}</p>}
+              {obra.cliente.email && <p className="text-sm text-auro-navy/60">{obra.cliente.email}</p>}
             </div>
 
-            {/* Tabs */}
-            <div className="flex border-b border-auro-border overflow-x-auto">
-              {tabs.map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => setTab(t.id)}
-                  className={`flex-shrink-0 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-center transition-colors border-b-2 whitespace-nowrap
-                    ${tab === t.id ? 'text-auro-orange border-auro-orange' : 'text-auro-navy/30 border-transparent hover:text-auro-navy/50'}`}
-                >
-                  {t.label}
-                  {t.badge && t.badge > 0 ? <span className="ml-1 bg-estado-red text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">{t.badge}</span> : null}
-                </button>
-              ))}
+            {/* Datos técnicos */}
+            <div className="bg-white border border-auro-border rounded-xl p-4">
+              <h3 className="text-xs font-bold text-auro-navy/60 uppercase mb-2">Datos técnicos</h3>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div><span className="text-auro-navy/40">Tipo:</span> {obra.tipo}</div>
+                {obra.potenciaKwp && <div><span className="text-auro-navy/40">Potencia:</span> {obra.potenciaKwp} kWp</div>}
+                {obra.numPaneles && <div><span className="text-auro-navy/40">Paneles:</span> {obra.numPaneles}</div>}
+                {obra.inversor && <div><span className="text-auro-navy/40">Inversor:</span> {obra.inversor}</div>}
+                {obra.bateriaKwh && <div><span className="text-auro-navy/40">Batería:</span> {obra.bateriaKwh} kWh</div>}
+                {obra.direccionInstalacion && <div className="col-span-2"><span className="text-auro-navy/40">Dirección:</span> {obra.direccionInstalacion}</div>}
+              </div>
             </div>
 
-            {/* Contenido tab */}
-            <div className="p-5 max-h-[450px] overflow-y-auto">
-              {/* TAB INFO */}
-              {tab === 'info' && (
-                <div className="space-y-5">
-                  {/* KPIs económicos */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {[
-                      { label: 'Presupuesto', value: fmt(obra.presupuestoTotal), color: 'text-auro-navy' },
-                      { label: 'Cobrado', value: `${fmt(obra.totalCobrado)} (${obra.porcentajeCobro}%)`, color: 'text-estado-green' },
-                      { label: 'Pendiente', value: fmt(obra.pendiente), color: obra.pendiente > 0 ? 'text-estado-red' : 'text-estado-green' },
-                      { label: 'Margen', value: `${obra.margen}%`, color: obra.margen >= 25 ? 'text-estado-green' : 'text-estado-amber' },
-                    ].map((kpi) => (
-                      <div key={kpi.label} className="bg-auro-surface-2 rounded-xl p-3">
-                        <div className="text-[10px] font-semibold text-auro-navy/30 uppercase">{kpi.label}</div>
-                        <div className={`text-sm font-bold ${kpi.color}`}>{kpi.value}</div>
-                      </div>
-                    ))}
-                  </div>
+            {/* Financiero */}
+            <div className="bg-white border border-auro-border rounded-xl p-4">
+              <h3 className="text-xs font-bold text-auro-navy/60 uppercase mb-2">Financiero</h3>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div><span className="text-auro-navy/40">Presupuesto:</span> {(obra.presupuestoTotal / 100).toFixed(2)}€</div>
+                <div><span className="text-auro-navy/40">Cobrado:</span> {(obra.totalCobrado / 100).toFixed(2)}€ ({obra.porcentajeCobro}%)</div>
+                <div><span className="text-auro-navy/40">Pendiente:</span> {(obra.pendiente / 100).toFixed(2)}€</div>
+                <div><span className="text-auro-navy/40">Gastos:</span> {(obra.totalGastos / 100).toFixed(2)}€</div>
+              </div>
+            </div>
+          </div>
+        )}
 
-                  {/* Datos técnicos */}
-                  <div>
-                    <div className="text-xs font-semibold text-auro-navy/30 uppercase tracking-wider mb-2">Datos técnicos</div>
-                    <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-                      <div><span className="text-auro-navy/40">Tipo:</span> <span className="font-medium">{obra.tipo}</span></div>
-                      <div><span className="text-auro-navy/40">Potencia:</span> <span className="font-medium">{obra.potenciaKwp || '—'} kWp</span></div>
-                      <div><span className="text-auro-navy/40">Paneles:</span> <span className="font-medium">{obra.numPaneles || '—'}</span></div>
-                      <div><span className="text-auro-navy/40">Inversor:</span> <span className="font-medium">{obra.inversor || '—'}</span></div>
-                      {obra.bateriaKwh && <div><span className="text-auro-navy/40">Batería:</span> <span className="font-medium">{obra.bateriaKwh} kWh</span></div>}
-                    </div>
-                  </div>
-
-                  {/* Equipo */}
-                  <div>
-                    <div className="text-xs font-semibold text-auro-navy/30 uppercase tracking-wider mb-2">Equipo asignado</div>
-                    <div className="text-sm space-y-1">
-                      {obra.comercial && (
-                        <div><span className="text-auro-navy/40">Comercial:</span> <span className="font-medium">{obra.comercial.nombre} {obra.comercial.apellidos}</span></div>
-                      )}
-                      {obra.instaladores.length > 0 ? obra.instaladores.map((inst, i) => (
-                        <div key={i}><span className="text-auro-navy/40">{inst.esJefe ? 'Jefe inst.:' : 'Instalador:'}</span> <span className="font-medium">{inst.instalador.nombre} {inst.instalador.apellidos}</span></div>
-                      )) : (
-                        <div className="text-auro-navy/30 italic">Sin instaladores asignados</div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Cliente */}
-                  <div>
-                    <div className="text-xs font-semibold text-auro-navy/30 uppercase tracking-wider mb-2">Cliente</div>
-                    <div className="text-sm space-y-1">
-                      <div className="font-medium">{obra.cliente.nombre} {obra.cliente.apellidos}</div>
-                      {obra.cliente.telefono && <div className="text-auro-navy/50">📞 {obra.cliente.telefono}</div>}
-                      {obra.cliente.email && <div className="text-auro-navy/50">✉️ {obra.cliente.email}</div>}
-                    </div>
-                  </div>
-
-                  {/* Fechas */}
-                  <div>
-                    <div className="text-xs font-semibold text-auro-navy/30 uppercase tracking-wider mb-2">Fechas clave</div>
-                    <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
-                      <div><span className="text-auro-navy/40">Creación:</span> <span className="font-medium">{fmtFecha(obra.fechaCreacion)}</span></div>
-                      {obra.fechaProgramada && <div><span className="text-auro-navy/40">Programada:</span> <span className="font-medium">{fmtFecha(obra.fechaProgramada)}</span></div>}
-                      {obra.fechaInicio && <div><span className="text-auro-navy/40">Inicio:</span> <span className="font-medium">{fmtFecha(obra.fechaInicio)}</span></div>}
-                      {obra.fechaFin && <div><span className="text-auro-navy/40">Fin:</span> <span className="font-medium">{fmtFecha(obra.fechaFin)}</span></div>}
-                      {obra.fechaValidacion && <div><span className="text-auro-navy/40">Validación:</span> <span className="font-medium">{fmtFecha(obra.fechaValidacion)}</span></div>}
-                    </div>
-                  </div>
-
-                  {obra.notas && (
-                    <div>
-                      <div className="text-xs font-semibold text-auro-navy/30 uppercase tracking-wider mb-2">Notas</div>
-                      <p className="text-sm text-auro-navy/60">{obra.notas}</p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* TAB PAGOS */}
-              {tab === 'pagos' && (
-                <div className="space-y-4">
-                  {/* Barra de progreso */}
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-auro-navy/40">Cobrado: {fmt(obra.totalCobrado)}</span>
-                      <span className="font-bold text-auro-navy">{obra.porcentajeCobro}%</span>
-                    </div>
-                    <div className="h-2.5 bg-auro-surface-3 rounded-full overflow-hidden">
-                      <div className="h-full bg-estado-green rounded-full transition-all" style={{ width: `${Math.min(obra.porcentajeCobro, 100)}%` }} />
-                    </div>
-                  </div>
-
-                  {/* Plan de pagos */}
-                  {obra.planPagos.length > 0 && (
-                    <div>
-                      <div className="text-xs font-semibold text-auro-navy/30 uppercase mb-2">Plan de pagos</div>
-                      {obra.planPagos.map(p => (
-                        <div key={p.id} className="flex items-center gap-3 py-2 border-b border-auro-border/50 last:border-0">
-                          <span className={`text-lg ${p.pagado ? '' : 'opacity-30'}`}>{p.pagado ? '✅' : '⬜'}</span>
-                          <div className="flex-1"><span className="text-sm font-medium">{p.concepto}</span></div>
-                          <span className="text-sm font-bold">{fmt(p.importe)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Pagos registrados */}
-                  <div>
-                    <div className="text-xs font-semibold text-auro-navy/30 uppercase mb-2">Pagos registrados ({obra.pagos.length})</div>
-                    {obra.pagos.length === 0 ? (
-                      <p className="text-sm text-auro-navy/30 text-center py-4">Sin pagos registrados</p>
-                    ) : obra.pagos.map(p => (
-                      <div key={p.id} className="flex items-center gap-3 py-2 border-b border-auro-border/50 last:border-0">
-                        <span className="text-lg">💰</span>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium">{fmt(p.importe)}</div>
-                          <div className="text-[10px] text-auro-navy/30">{p.metodo} · {fmtFecha(p.fechaCobro)} · {p.registradoPor.nombre}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* TAB DOCUMENTOS */}
-              {tab === 'documentos' && (
+        {tab === 'pagos' && (
+          <div className="space-y-4">
+            {/* Plan de pagos */}
+            <div className="bg-white border border-auro-border rounded-xl p-4">
+              <h3 className="text-xs font-bold text-auro-navy/60 uppercase mb-2">Plan de pagos</h3>
+              {obra.planPagos.length === 0 ? (
+                <p className="text-sm text-auro-navy/40">Sin plan de pagos definido</p>
+              ) : (
                 <div className="space-y-2">
-                  {obra.documentos.length === 0 ? (
-                    <p className="text-sm text-auro-navy/30 text-center py-6">Sin documentos</p>
-                  ) : obra.documentos.map(d => (
-                    <div key={d.id} className="flex items-center gap-3 py-2 border-b border-auro-border/50 last:border-0">
-                      <span className="text-lg">📄</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium truncate">{d.nombre}</div>
-                        <div className="text-[10px] text-auro-navy/30">{d.tipo} · {fmtFecha(d.createdAt)}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* TAB TIMELINE */}
-              {tab === 'timeline' && (
-                <div className="space-y-3">
-                  {obra.actividades.length === 0 ? (
-                    <p className="text-sm text-auro-navy/30 text-center py-6">Sin actividad registrada</p>
-                  ) : obra.actividades.map((act, i) => {
-                    let detalleParsed: any = {};
-                    try { detalleParsed = act.detalle ? JSON.parse(act.detalle) : {}; } catch {}
-
-                    const iconMap: Record<string, string> = {
-                      ESTADO_CAMBIADO: '🔄', PAGO_REGISTRADO: '💰', OBRA_CREADA: '✨',
-                      CHECKIN_REGISTRADO: '📍', INSTALADORES_ASIGNADOS: '👷', OBRA_EDITADA: '✏️',
-                    };
-
-                    return (
-                      <div key={i} className="flex gap-3">
-                        <div className="w-8 h-8 rounded-full bg-auro-surface-2 flex items-center justify-center text-xs shrink-0">
-                          {iconMap[act.accion] || '📝'}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-auro-navy">
-                            {act.accion.replace(/_/g, ' ')}
-                          </div>
-                          {detalleParsed.estadoAnterior && (
-                            <p className="text-xs text-auro-navy/50">
-                              {ESTADO_CONFIG[detalleParsed.estadoAnterior]?.label} → {ESTADO_CONFIG[detalleParsed.nuevoEstado]?.label}
-                              {detalleParsed.nota && ` · "${detalleParsed.nota}"`}
-                              {detalleParsed.override && ' ⚡ Override'}
-                            </p>
-                          )}
-                          <div className="text-[10px] text-auro-navy/25 mt-0.5">
-                            {act.usuario.nombre} · {fmtFechaHora(act.createdAt)}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* TAB INCIDENCIAS */}
-              {tab === 'incidencias' && (
-                <div className="space-y-3">
-                  {obra.incidencias.length === 0 ? (
-                    <p className="text-sm text-auro-navy/30 text-center py-6">Sin incidencias 🎉</p>
-                  ) : obra.incidencias.map((inc) => (
-                    <div key={inc.id} className="bg-auro-surface-2 rounded-xl p-3">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <span className={`text-xs font-bold ${
-                          inc.gravedad === 'CRITICA' || inc.gravedad === 'ALTA' ? 'text-estado-red' :
-                          inc.gravedad === 'MEDIA' ? 'text-estado-amber' : 'text-estado-blue'
-                        }`}>
-                          {inc.gravedad === 'CRITICA' ? '🔴' : inc.gravedad === 'ALTA' ? '🟠' : inc.gravedad === 'MEDIA' ? '🟡' : '🔵'} {inc.gravedad}
-                        </span>
-                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                          inc.estado === 'ABIERTA' ? 'bg-estado-red/10 text-estado-red' :
-                          inc.estado === 'EN_PROCESO' ? 'bg-estado-amber/10 text-estado-amber' :
-                          'bg-estado-green/10 text-estado-green'
-                        }`}>{inc.estado}</span>
-                        {inc.categoria && (
-                          <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-auro-surface-3 text-auro-navy/50">{inc.categoria}</span>
+                  {obra.planPagos.map(h => (
+                    <div key={h.id} className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2">
+                        <span>{h.pagado ? '✅' : '⏳'}</span>
+                        <span className={h.pagado ? 'text-auro-navy' : 'text-auro-navy/60'}>{h.concepto}</span>
+                        {h.requiereParaEstado && (
+                          <span className="px-1.5 py-0.5 bg-estado-amber/10 text-estado-amber text-[10px] rounded font-medium">
+                            req. {ESTADO_CONFIG[h.requiereParaEstado]?.label || h.requiereParaEstado}
+                          </span>
                         )}
                       </div>
-                      <p className="text-sm text-auro-navy/70">{inc.descripcion}</p>
-                      <div className="text-[10px] text-auro-navy/25 mt-1">{fmtFecha(inc.createdAt)}</div>
+                      <span className="font-medium">{(h.importe / 100).toFixed(2)}€</span>
                     </div>
                   ))}
                 </div>
               )}
             </div>
-          </>
+
+            {/* Pagos realizados */}
+            <div className="bg-white border border-auro-border rounded-xl p-4">
+              <h3 className="text-xs font-bold text-auro-navy/60 uppercase mb-2">Cobros registrados</h3>
+              {obra.pagos.length === 0 ? (
+                <p className="text-sm text-auro-navy/40">Sin cobros registrados</p>
+              ) : (
+                <div className="space-y-2">
+                  {obra.pagos.map(p => (
+                    <div key={p.id} className="flex items-center justify-between text-sm">
+                      <div>
+                        <span className="font-medium">{(p.importe / 100).toFixed(2)}€</span>
+                        <span className="text-auro-navy/40 ml-2">{p.metodo}</span>
+                        {p.concepto && <span className="text-auro-navy/40 ml-2">— {p.concepto}</span>}
+                      </div>
+                      <span className="text-xs text-auro-navy/40">{new Date(p.fechaCobro).toLocaleDateString('es-ES')}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {tab === 'documentos' && (
+          <div className="bg-white border border-auro-border rounded-xl p-4">
+            <h3 className="text-xs font-bold text-auro-navy/60 uppercase mb-2">Documentos</h3>
+            {obra.documentos.length === 0 ? (
+              <p className="text-sm text-auro-navy/40">Sin documentos</p>
+            ) : (
+              <div className="space-y-2">
+                {obra.documentos.map(d => (
+                  <div key={d.id} className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2">
+                      <span>📄</span>
+                      <span>{d.nombre}</span>
+                      <span className="px-1.5 py-0.5 bg-auro-surface-2 text-auro-navy/40 text-[10px] rounded">{d.tipo}</span>
+                    </div>
+                    <span className="text-xs text-auro-navy/40">{new Date(d.createdAt).toLocaleDateString('es-ES')}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === 'timeline' && (
+          <div className="bg-white border border-auro-border rounded-xl p-4">
+            <h3 className="text-xs font-bold text-auro-navy/60 uppercase mb-2">Actividad reciente</h3>
+            <div className="space-y-3">
+              {obra.actividades.map((a, i) => {
+                let detalle: any = {};
+                try { detalle = a.detalle ? JSON.parse(a.detalle) : {}; } catch {}
+                const isOverride = a.accion === 'OVERRIDE_ESTADO';
+
+                return (
+                  <div key={i} className={`flex gap-3 text-sm ${isOverride ? 'bg-estado-amber/5 -mx-2 px-2 py-1 rounded-lg' : ''}`}>
+                    <div className="text-xs text-auro-navy/30 w-16 shrink-0 pt-0.5">
+                      {new Date(a.createdAt).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })}
+                    </div>
+                    <div className="flex-1">
+                      <span className="font-medium text-auro-navy/80">{a.usuario.nombre}</span>
+                      <span className="text-auro-navy/40 ml-1">
+                        {a.accion === 'ESTADO_CAMBIADO' && detalle.estadoAnterior
+                          ? `cambió estado: ${ESTADO_CONFIG[detalle.estadoAnterior]?.label || detalle.estadoAnterior} → ${ESTADO_CONFIG[detalle.nuevoEstado]?.label || detalle.nuevoEstado}`
+                          : a.accion === 'OVERRIDE_ESTADO'
+                            ? `⚠️ Override: ${detalle.estadoAnterior} → ${detalle.nuevoEstado}. Motivo: ${detalle.motivoOverride || '—'}`
+                            : a.accion.toLowerCase().replace(/_/g, ' ')
+                        }
+                      </span>
+                      {detalle.nota && <p className="text-xs text-auro-navy/30 mt-0.5">"{detalle.nota}"</p>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {tab === 'incidencias' && (
+          <div className="bg-white border border-auro-border rounded-xl p-4">
+            <h3 className="text-xs font-bold text-auro-navy/60 uppercase mb-2">Incidencias</h3>
+            {obra.incidencias.length === 0 ? (
+              <p className="text-sm text-auro-navy/40">Sin incidencias</p>
+            ) : (
+              <div className="space-y-2">
+                {obra.incidencias.map(inc => (
+                  <div key={inc.id} className="flex items-center justify-between text-sm border border-auro-border rounded-lg p-2">
+                    <div className="flex items-center gap-2">
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                        inc.gravedad === 'CRITICA' ? 'bg-estado-red/10 text-estado-red' :
+                        inc.gravedad === 'ALTA' ? 'bg-estado-amber/10 text-estado-amber' :
+                        'bg-auro-surface-2 text-auro-navy/60'
+                      }`}>{inc.gravedad}</span>
+                      <span>{inc.descripcion}</span>
+                    </div>
+                    <span className={`text-xs font-medium ${
+                      inc.estado === 'ABIERTA' ? 'text-estado-red' :
+                      inc.estado === 'EN_PROCESO' ? 'text-estado-amber' :
+                      'text-estado-green'
+                    }`}>{inc.estado}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === 'validacion' && (
+          <div className="space-y-4">
+            {obra.checklistValidaciones && obra.checklistValidaciones.length > 0 ? (
+              <ChecklistReview
+                checklist={obra.checklistValidaciones[0]}
+                obraId={obra.id}
+                canReview={canReview && obra.estado === 'REVISION_COORDINADOR'}
+                onReviewComplete={() => fetchObra()}
+              />
+            ) : (
+              <div className="bg-white border border-auro-border rounded-xl p-4">
+                <p className="text-sm text-auro-navy/40">No hay checklist de validación para esta obra.</p>
+              </div>
+            )}
+          </div>
         )}
       </div>
+
+      {/* Override Modal */}
+      {showOverride && estadoTarget && evaluation && (
+        <OverrideModal
+          gates={evaluation.gates.filter(g => !g.passed)}
+          estadoTarget={estadoTarget}
+          estadoLabel={ESTADO_CONFIG[estadoTarget]?.label || estadoTarget}
+          loading={cambiandoEstado}
+          onConfirm={(motivo) => {
+            setNotaCambio(motivo);
+            ejecutarCambio(true);
+          }}
+          onCancel={() => {
+            setShowOverride(false);
+          }}
+        />
+      )}
     </div>
   );
 }
