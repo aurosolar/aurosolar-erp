@@ -9,6 +9,7 @@ export const dynamic = 'force-dynamic';
 const updateSchema = z.object({
   estado: z.enum(['ABIERTA', 'EN_PROCESO', 'RESUELTA', 'CERRADA']),
   notasResolucion: z.string().optional(),
+  asignadoAId: z.string().uuid().optional(),
 });
 
 export const PATCH = withAuth('incidencias:resolver', async (req, { usuario }) => {
@@ -23,32 +24,25 @@ export const PATCH = withAuth('incidencias:resolver', async (req, { usuario }) =
     data: {
       estado: input.estado,
       notasResolucion: input.notasResolucion,
+      asignadoAId: input.asignadoAId,
       fechaResolucion: ['RESUELTA', 'CERRADA'].includes(input.estado) ? new Date() : null,
     },
   });
 
-  // Si se resuelve, comprobar si la obra puede salir de estado INCIDENCIA
+  // Si se resuelve/cierra, recalcular flag de incidencia crítica en la obra
   if (['RESUELTA', 'CERRADA'].includes(input.estado) && incidencia.obraId) {
-    const abiertas = await prisma.incidencia.count({
-      where: { obraId: incidencia.obraId, estado: { in: ['ABIERTA', 'EN_PROCESO'] }, id: { not: id } },
+    const criticasAbiertas = await prisma.incidencia.count({
+      where: {
+        obraId: incidencia.obraId,
+        gravedad: 'CRITICA',
+        estado: { in: ['ABIERTA', 'EN_PROCESO'] },
+        id: { not: id },
+      },
     });
-    if (abiertas === 0) {
-      const obra = await prisma.obra.findUnique({ where: { id: incidencia.obraId } });
-      if (obra && obra.estado === 'INCIDENCIA') {
-        // Volver a INSTALANDO por defecto
-        await prisma.obra.update({ where: { id: obra.id }, data: { estado: 'INSTALANDO' } });
-        await prisma.actividad.create({
-          data: {
-            obraId: obra.id,
-            usuarioId: usuario.id,
-            accion: 'ESTADO_CAMBIADO',
-            entidad: 'obra',
-            entidadId: obra.id,
-            detalle: JSON.stringify({ estadoAnterior: 'INCIDENCIA', nuevoEstado: 'INSTALANDO', motivo: 'Todas las incidencias resueltas' }),
-          },
-        });
-      }
-    }
+    await prisma.obra.update({
+      where: { id: incidencia.obraId },
+      data: { tieneIncidenciaCritica: criticasAbiertas > 0 },
+    });
   }
 
   // Registrar actividad
