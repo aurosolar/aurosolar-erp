@@ -34,3 +34,7 @@ prisma/migrations/**/migration_lock.toml
 
 # Uploads (no subir archivos de usuario a git)
 uploads/
+
+# Logs de aplicación
+logs/
+*.log
