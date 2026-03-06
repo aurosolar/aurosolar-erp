@@ -1,3 +1,5 @@
+import { registrarEvento } from '@/services/auditoria-hmac.service';
+import { getPerfilObra, shouldSkipGate } from '@/services/obra-profiles';
 // src/services/gate-engine.ts
 // ═══════════════════════════════════════════════════════════
 // MOTOR DE GATES — Validación de transiciones de estado de obra
@@ -49,6 +51,7 @@ interface ObraConDatos {
   id: string;
   codigo: string;
   estado: EstadoObra;
+  tipo: string;
   clienteId: string | null;
   presupuestoTotal: number;       // Céntimos
   costeTotal: number;             // Céntimos
@@ -58,6 +61,7 @@ interface ObraConDatos {
   expedienteLegal: string | null;
   estadoLegalizacion: string | null;
   tieneIncidenciaCritica: boolean;
+  version: number;
   instaladores: Array<{
     instaladorId: string;
     instalador: { id: string; nombre: string; apellidos: string };
@@ -538,20 +542,9 @@ export async function executeTransition(
   if (to === 'VALIDACION_OPERATIVA' || to === 'REVISION_COORDINADOR') updateData.fechaValidacion = new Date();
   if (to === 'LEGALIZADA') updateData.fechaLegalizacion = new Date();
 
-  const obraActualizada = await prisma.obra.update({ where: { id: obraId }, data: updateData });
+  const obraActualizada = await prisma.obra.update({ where: { id: obraId, version: obra.version }, data: { ...updateData, version: { increment: 1 } } });
 
-  // ── Auditoría: cambio de estado ──
-  await prisma.actividad.create({
-    data: {
-      obraId, usuarioId: userId,
-      accion: 'ESTADO_CAMBIADO', entidad: 'obra', entidadId: obraId,
-      detalle: JSON.stringify({
-        estadoAnterior: from, nuevoEstado: to, nota,
-        override: esOverride || undefined,
-        gates: evaluation.gates.map(g => ({ gate: g.gate, passed: g.passed })),
-      }),
-    },
-  });
+  // ── Auditoría: cambio de estado (via registrarEvento HMAC más abajo) ──
 
   // ── Auditoría + notificación de override ──
   if (esOverride) {
@@ -587,6 +580,21 @@ export async function executeTransition(
     where: { obraId, gravedad: 'CRITICA', estado: { in: ['ABIERTA', 'EN_PROCESO'] } },
   });
   await prisma.obra.update({ where: { id: obraId }, data: { tieneIncidenciaCritica: criticas > 0 } });
+
+  // Registrar en cadena HMAC
+  await registrarEvento({
+    obraId: obra.id,
+    usuarioId: userId,
+    accion: 'ESTADO_CAMBIADO',
+    entidad: 'obra',
+    entidadId: obra.id,
+    detalle: {
+      estadoAnterior: from,
+      nuevoEstado: to,
+      nota,
+      override: esOverride || undefined,
+    },
+  });
 
   logger.info('estado_obra_cambiado', {
     codigo: obra.codigo, de: from, a: to,

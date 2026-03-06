@@ -38,3 +38,6 @@ uploads/
 # Logs de aplicación
 logs/
 *.log
+
+# Scripts de deploy archivados
+scripts/archive/

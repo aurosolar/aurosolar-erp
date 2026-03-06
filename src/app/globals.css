@@ -21,3 +21,11 @@ body {
   background: #c5cdd8;
   border-radius: 3px;
 }
+
+
+/* Hide scrollbar */
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Keep Leaflet below modals */
+.leaflet-pane, .leaflet-control, .leaflet-top, .leaflet-bottom { z-index: 1 !important; }

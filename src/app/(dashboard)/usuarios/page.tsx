@@ -36,7 +36,7 @@ export default function UsuariosPage() {
 
   async function toggleActivo(u: Usuario) {
     await fetch(`/api/usuarios/${u.id}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' },
       body: JSON.stringify({ activo: !u.activo }),
     });
     cargar();
@@ -159,7 +159,7 @@ function UsuarioModal({ usuario, onClose, onGuardado }: { usuario?: Usuario; onC
     const url = esEditar ? `/api/usuarios/${usuario!.id}` : '/api/usuarios';
     const method = esEditar ? 'PATCH' : 'POST';
 
-    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' }, body: JSON.stringify(body) });
     const data = await res.json();
 
     if (data.ok) { onGuardado(); onClose(); }

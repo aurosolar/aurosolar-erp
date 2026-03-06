@@ -187,7 +187,7 @@ function DetalleModal({ activo, onClose, onMant, onRefresh }: {
     const resultado = prompt('Resultado del mantenimiento:');
     if (!resultado) return;
     await fetch(`/api/mantenimientos/${mantId}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' },
       body: JSON.stringify({ resultado }),
     });
     onRefresh();
@@ -292,7 +292,7 @@ function CrearActivoModal({ onClose, onCreado }: { onClose: () => void; onCreado
       garantiaAnios: form.garantiaAnios ? parseInt(form.garantiaAnios) : undefined,
     };
     const res = await fetch('/api/activos', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' }, body: JSON.stringify(body),
     });
     const data = await res.json();
     if (data.ok) onCreado();
@@ -384,7 +384,7 @@ function MantModal({ activoId, onClose, onCreado }: { activoId: string; onClose:
       coste: form.coste ? Math.round(parseFloat(form.coste) * 100) : undefined,
     };
     const res = await fetch('/api/mantenimientos', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' }, body: JSON.stringify(body),
     });
     const data = await res.json();
     if (data.ok) onCreado();

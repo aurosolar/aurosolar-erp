@@ -12,7 +12,7 @@ const TRANSICIONES_LEGAL: Record<string, string[]> = {
 export async function listarLegalizaciones(filtros?: { estado?: string }) {
   const where: any = {
     deletedAt: null,
-    estado: { in: ['TERMINADA', 'LEGALIZACION'] },
+    estado: { in: ['REVISION_COORDINADOR', 'LEGALIZACION'] },
     estadoLegalizacion: { not: 'NO_APLICA' },
   };
   if (filtros?.estado) where.estadoLegalizacion = filtros.estado as any;
@@ -58,7 +58,7 @@ export async function avanzarLegalizacion(obraId: string, nuevoEstado: string, u
   if (datos?.expediente) updateData.expedienteLegal = datos.expediente;
 
   // Si pasa a INSCRITA, mover obra a LEGALIZACION si no está ya
-  if (nuevoEstado === 'INSCRITA' && obra.estado === 'TERMINADA') {
+  if (nuevoEstado === 'INSCRITA' && obra.estado === 'REVISION_COORDINADOR') {
     updateData.estado = 'LEGALIZACION';
   }
 

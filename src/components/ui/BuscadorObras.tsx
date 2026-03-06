@@ -83,7 +83,6 @@ export default function BuscadorObras({ value, onChange, label = 'Obra', placeho
     PREPARANDO: 'bg-yellow-100 text-yellow-700',
     PROGRAMADA: 'bg-purple-100 text-purple-700',
     INSTALANDO: 'bg-orange-100 text-orange-700',
-    TERMINADA: 'bg-teal-100 text-teal-700',
     LEGALIZACION: 'bg-indigo-100 text-indigo-700',
     COMPLETADA: 'bg-green-100 text-green-700',
   };

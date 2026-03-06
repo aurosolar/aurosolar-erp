@@ -28,3 +28,28 @@ export function useSession() {
 
   return { usuario, loading };
 }
+
+// ── Helper centralizado para fetch mutadores ──────────────────────────────────
+// Añade automáticamente los headers necesarios para CSRF y JSON.
+// Usar en lugar de fetch() directo para POST/PUT/PATCH/DELETE.
+//
+// Uso:
+//   import { apiFetch } from '@/lib/useSession';
+//   const res = await apiFetch('/api/obras', { method: 'POST', body: data });
+
+export async function apiFetch(
+  url: string,
+  options: RequestInit & { body?: unknown } = {}
+): Promise<Response> {
+  const { body, headers, ...rest } = options;
+
+  return fetch(url, {
+    ...rest,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'aurosolar-erp',
+      ...(headers as Record<string, string> || {}),
+    },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+}

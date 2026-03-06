@@ -41,7 +41,7 @@ export default function ValidarAvanzadoPage() {
 
   useEffect(() => {
     fetch('/api/obras').then(r => r.json()).then(d => {
-      if (d.ok) setObras(d.data.filter((o: any) => ['INSTALANDO', 'TERMINADA'].includes(o.estado)).map((o: any) => ({ id: o.id, codigo: o.codigo })));
+      if (d.ok) setObras(d.data.filter((o: any) => ['INSTALANDO', 'VALIDACION_OPERATIVA'].includes(o.estado)).map((o: any) => ({ id: o.id, codigo: o.codigo })));
     });
   }, []);
 
@@ -76,8 +76,7 @@ export default function ValidarAvanzadoPage() {
     setEnviando(true);
     const resultado = resultadoAuto();
     await fetch('/api/validacion-avanzada', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' },
       body: JSON.stringify({
         obraId: obraData.id,
         resultado,

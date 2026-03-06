@@ -21,6 +21,17 @@ const config: Config = {
           'surface-3': '#E5EAF2',
           border: '#E0E5ED',
         },
+        // Paleta Stitch (complementaria)
+        stitch: {
+          primary: '#10B981',    // emerald-500
+          'primary-dark': '#059669',
+          accent: '#1E293B',     // slate-800
+          bg: '#F8FAFC',         // slate-50
+          surface: '#FFFFFF',
+          border: '#E2E8F0',     // slate-200
+          text: '#1E293B',
+          muted: '#94A3B8',      // slate-400
+        },
         estado: {
           green: '#16A34A',
           'green-bg': '#F0FFF4',

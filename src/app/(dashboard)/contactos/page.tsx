@@ -59,7 +59,7 @@ export default function ContactosPage() {
     setGuardando(true);
     try {
       const res = await fetch('/api/contactos', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' },
         body: JSON.stringify(form),
       });
       if (res.ok) {

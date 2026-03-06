@@ -42,8 +42,7 @@ export function NuevaObraModal({ onClose, onCreated }: Props) {
       // Primero crear el cliente
       // TODO: En siguiente sprint, permitir seleccionar cliente existente
       const clienteRes = await fetch('/api/clientes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' },
         body: JSON.stringify({
           nombre: form.clienteNombre,
           apellidos: form.clienteApellidos,
@@ -61,8 +60,7 @@ export function NuevaObraModal({ onClose, onCreated }: Props) {
 
       // Crear la obra
       const obraRes = await fetch('/api/obras', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' },
         body: JSON.stringify({
           clienteId: clienteData.data.id,
           tipo: form.tipo,
@@ -117,6 +115,11 @@ export function NuevaObraModal({ onClose, onCreated }: Props) {
             <option value="AGROINDUSTRIAL">🌾 Agroindustrial</option>
             <option value="BATERIA">🔋 Batería</option>
             <option value="AEROTERMIA">🌡️ Aerotermia</option>
+            <option value="BESS">🔋 BESS</option>
+            <option value="BACKUP">⚡ Backup</option>
+            <option value="ALQUILER_CUBIERTA">🏭 Alquiler cubierta</option>
+            <option value="REPARACION">🔧 Reparación</option>
+            <option value="SUSTITUCION">🔄 Sustitución equipo</option>
           </select>
 
           <input value={form.direccionInstalacion} onChange={(e) => updateForm('direccionInstalacion', e.target.value)} placeholder="Dirección de instalación" className="w-full h-10 px-3 bg-auro-surface-2 border border-auro-border rounded-input text-sm focus:outline-none focus:border-auro-orange/40" />

@@ -1,132 +1,94 @@
 // src/app/(campo)/campo/historial/page.tsx
 'use client';
-
-import { useSession } from '@/lib/useSession';
 import { useState, useEffect } from 'react';
 
-interface CheckinHistorial {
-  id: string;
-  obraId: string;
-  horaEntrada: string;
-  horaSalida: string | null;
-  nota: string | null;
-  obra?: {
-    codigo: string;
-    cliente?: { nombre: string; apellidos: string };
-    direccionInstalacion?: string;
-  };
+interface CheckinHist {
+  id: string; horaEntrada: string; horaSalida: string | null; nota: string | null;
+  obra: { codigo: string; direccionInstalacion: string | null; estado: string; cliente: { nombre: string; apellidos: string } };
 }
 
 export default function HistorialPage() {
-  const { usuario, loading } = useSession();
-  const [checkins, setCheckins] = useState<CheckinHistorial[]>([]);
-  const [cargando, setCargando] = useState(true);
+  const [checkins, setCheckins] = useState<CheckinHist[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (usuario) {
-      fetch('/api/campo/checkin')
-        .then(r => r.json())
-        .then(res => {
-          if (res.ok && Array.isArray(res.data)) {
-            // Ordenar por fecha descendente
-            const sorted = res.data.sort((a: any, b: any) =>
-              new Date(b.horaEntrada).getTime() - new Date(a.horaEntrada).getTime()
-            );
-            setCheckins(sorted);
-          }
-        })
-        .catch(() => {})
-        .finally(() => setCargando(false));
-    }
-  }, [usuario]);
+    fetch('/api/campo/checkin?limit=50').then(r => r.json()).then(d => {
+      if (d.ok) setCheckins(d.data);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
 
-  if (loading || cargando) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="w-8 h-8 border-2 border-[#F5820A]/30 border-t-[#F5820A] rounded-full animate-spin" />
-      </div>
-    );
+  function duracion(entrada: string, salida: string | null) {
+    if (!salida) return 'En curso';
+    const mins = Math.round((new Date(salida).getTime() - new Date(entrada).getTime()) / 60000);
+    if (mins < 60) return `${mins}m`;
+    return `${Math.floor(mins / 60)}h ${mins % 60}m`;
   }
 
-  // Agrupar por día
-  const porDia: Record<string, CheckinHistorial[]> = {};
+  function fecha(d: string) {
+    return new Date(d).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' });
+  }
+  function hora(d: string) {
+    return new Date(d).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  // Group by date
+  const grouped: Record<string, CheckinHist[]> = {};
   checkins.forEach(c => {
-    const dia = new Date(c.horaEntrada).toLocaleDateString('es-ES', {
-      weekday: 'long', day: 'numeric', month: 'long',
-    });
-    if (!porDia[dia]) porDia[dia] = [];
-    porDia[dia].push(c);
+    const key = new Date(c.horaEntrada).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(c);
   });
 
-  function formatHora(iso: string) {
-    return new Date(iso).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-  }
-
-  function calcularHoras(entrada: string, salida: string | null) {
-    if (!salida) return 'En curso';
-    const diff = new Date(salida).getTime() - new Date(entrada).getTime();
-    const h = Math.floor(diff / 3600000);
-    const m = Math.floor((diff % 3600000) / 60000);
-    return `${h}h ${m}m`;
-  }
-
   return (
-    <div className="space-y-4">
-      <h2 className="text-lg font-extrabold">📋 Historial de actividad</h2>
+    <div>
+      <h2 className="text-lg font-extrabold text-slate-800 mb-1">📋 Historial</h2>
+      <p className="text-sm text-slate-400 mb-5">Tus jornadas de trabajo</p>
 
-      {checkins.length === 0 ? (
-        <div className="bg-white/[0.04] border border-white/[0.06] rounded-[14px] p-8 text-center">
-          <div className="text-3xl mb-2">📭</div>
-          <p className="text-sm text-white/40">No hay registros de actividad todavía</p>
+      {loading ? (
+        <div className="flex justify-center py-12"><div className="w-8 h-8 border-2 border-emerald-200 border-t-emerald-600 rounded-full animate-spin" /></div>
+      ) : checkins.length === 0 ? (
+        <div className="bg-white border border-slate-200 rounded-xl p-8 text-center">
+          <p className="text-sm text-slate-400">Sin registros de jornadas</p>
         </div>
       ) : (
-        Object.entries(porDia).map(([dia, items]) => (
-          <div key={dia}>
-            <div className="text-xs font-bold text-white/30 uppercase tracking-wide mb-2 px-1">
-              {dia}
-            </div>
-            <div className="space-y-2">
-              {items.map(c => (
-                <div
-                  key={c.id}
-                  className="bg-white/[0.04] border border-white/[0.06] rounded-[14px] p-3.5"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg shrink-0 ${
-                      c.horaSalida
-                        ? 'bg-[#16A34A]/10 border border-[#16A34A]/20'
-                        : 'bg-[#D97706]/10 border border-[#D97706]/20'
-                    }`}>
-                      {c.horaSalida ? '✅' : '🔄'}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-bold leading-tight truncate">
-                        {c.obra?.codigo ?? 'Obra'}
-                      </div>
-                      {c.obra?.cliente && (
-                        <div className="text-xs text-white/40 mt-0.5 truncate">
-                          {c.obra.cliente.nombre} {c.obra.cliente.apellidos}
+        <div className="space-y-5">
+          {Object.entries(grouped).map(([date, items]) => {
+            const totalMins = items.reduce((acc, c) => {
+              if (!c.horaSalida) return acc;
+              return acc + Math.round((new Date(c.horaSalida).getTime() - new Date(c.horaEntrada).getTime()) / 60000);
+            }, 0);
+            return (
+              <div key={date}>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-bold text-slate-500 capitalize">{date}</p>
+                  {totalMins > 0 && <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">{Math.floor(totalMins/60)}h {totalMins%60}m total</span>}
+                </div>
+                <div className="space-y-2">
+                  {items.map(c => (
+                    <div key={c.id} className="bg-white border border-slate-200 rounded-xl p-3">
+                      <div className="flex items-start justify-between mb-1">
+                        <div>
+                          <p className="text-[11px] font-bold text-emerald-600">{c.obra.codigo}</p>
+                          <p className="text-sm font-bold text-slate-800">{c.obra.cliente.nombre} {c.obra.cliente.apellidos}</p>
                         </div>
-                      )}
-                      <div className="flex items-center gap-3 mt-1.5 text-xs text-white/50">
-                        <span>🕐 {formatHora(c.horaEntrada)}</span>
-                        {c.horaSalida && <span>→ {formatHora(c.horaSalida)}</span>}
-                        <span className={`font-bold ${c.horaSalida ? 'text-[#16A34A]' : 'text-[#D97706]'}`}>
-                          {calcularHoras(c.horaEntrada, c.horaSalida)}
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${c.horaSalida ? 'bg-slate-100 text-slate-500' : 'bg-emerald-100 text-emerald-700'}`}>
+                          {duracion(c.horaEntrada, c.horaSalida)}
                         </span>
                       </div>
-                      {c.nota && (
-                        <div className="text-xs text-white/30 mt-1 italic truncate">
-                          {c.nota}
-                        </div>
-                      )}
+                      <div className="flex items-center gap-3 text-[11px] text-slate-400">
+                        <span>🕐 {hora(c.horaEntrada)}</span>
+                        <span>???</span>
+                        <span>{c.horaSalida ? `🕐 ${hora(c.horaSalida)}` : '...'}</span>
+                      </div>
+                      {c.nota && <p className="text-[10px] text-slate-400 mt-1 italic">"{c.nota}"</p>}
                     </div>
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </div>
-        ))
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );

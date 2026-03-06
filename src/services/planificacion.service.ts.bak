@@ -1,0 +1,228 @@
+// src/services/planificacion.service.ts
+import { prisma } from '@/lib/prisma';
+import logger from '@/lib/logger';
+
+// ── Listar eventos del calendario ──
+export async function listarEventos(filtros?: {
+  desde?: Date;
+  hasta?: Date;
+  instaladorId?: string;
+}) {
+  const desde = filtros?.desde || new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  const hasta = filtros?.hasta || new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0, 23, 59, 59);
+
+  const obras = await prisma.obra.findMany({
+    where: {
+      deletedAt: null,
+      fechaProgramada: { gte: desde, lte: hasta },
+      estado: { in: ['PROGRAMADA', 'INSTALANDO', 'VALIDACION_OPERATIVA', 'REVISION_COORDINADOR'] },
+      ...(filtros?.instaladorId ? {
+        instaladores: { some: { instaladorId: filtros.instaladorId } },
+      } : {}),
+    },
+    include: {
+      cliente: { select: { nombre: true, apellidos: true } },
+      instaladores: {
+        include: { instalador: { select: { id: true, nombre: true, apellidos: true } } },
+      },
+    },
+    orderBy: { fechaProgramada: 'asc' },
+  });
+
+  return obras.map(o => ({
+    id: o.id,
+    codigo: o.codigo,
+    titulo: `${o.codigo} · ${o.cliente.nombre} ${o.cliente.apellidos}`,
+    fecha: o.fechaProgramada,
+    tipo: o.tipo,
+    estado: o.estado,
+    direccion: o.direccionInstalacion,
+    localidad: o.localidad,
+    potencia: o.potenciaKwp,
+    instaladores: o.instaladores.map(i => ({
+      id: i.instalador.id,
+      nombre: `${i.instalador.nombre} ${i.instalador.apellidos || ''}`.trim(),
+    })),
+  }));
+}
+
+// ── Programar obra (asignar fecha + instaladores) ──
+export async function programarObra(input: {
+  obraId: string;
+  fecha: Date;
+  instaladorIds: string[];
+}, usuarioId: string) {
+  const obra = await prisma.obra.findUnique({ where: { id: input.obraId } });
+  if (!obra) throw new Error('Obra no encontrada');
+
+  // Detectar solapes
+  const fechaInicio = new Date(input.fecha);
+  fechaInicio.setHours(0, 0, 0, 0);
+  const fechaFin = new Date(input.fecha);
+  fechaFin.setHours(23, 59, 59, 999);
+
+  for (const instId of input.instaladorIds) {
+    const solapes = await prisma.obraInstalador.findMany({
+      where: {
+        instaladorId: instId,
+        obra: {
+          fechaProgramada: { gte: fechaInicio, lte: fechaFin },
+          estado: { in: ['PROGRAMADA', 'INSTALANDO'] },
+          id: { not: input.obraId },
+          deletedAt: null,
+        },
+      },
+      include: { obra: { select: { codigo: true } }, instalador: { select: { nombre: true } } },
+    });
+
+    if (solapes.length > 0) {
+      const inst = solapes[0].instalador;
+      const obrasSolape = solapes.map(s => s.obra.codigo).join(', ');
+      throw new Error(`${inst.nombre} ya tiene obras ese día: ${obrasSolape}`);
+    }
+  }
+
+  // Actualizar obra
+  await prisma.obra.update({
+    where: { id: input.obraId },
+    data: {
+      fechaProgramada: input.fecha,
+      estado: obra.estado === 'REVISION_TECNICA' || obra.estado === 'PREPARANDO' ? 'PROGRAMADA' : obra.estado,
+    },
+  });
+
+  // Asignar instaladores (borrar anteriores y reasignar)
+  await prisma.obraInstalador.deleteMany({ where: { obraId: input.obraId } });
+  for (const instId of input.instaladorIds) {
+    await prisma.obraInstalador.create({
+      data: { obraId: input.obraId, instaladorId: instId },
+    });
+  }
+
+  // Actividad
+  await prisma.actividad.create({
+    data: {
+      obraId: input.obraId,
+      usuarioId,
+      accion: 'OBRA_PROGRAMADA',
+      entidad: 'obra',
+      entidadId: input.obraId,
+      detalle: JSON.stringify({
+        fecha: input.fecha,
+        instaladores: input.instaladorIds,
+      }),
+    },
+  });
+
+  logger.info('obra_programada', { obraId: input.obraId, fecha: input.fecha });
+  return { ok: true };
+}
+
+// ── Obtener instaladores disponibles para una fecha ──
+export async function instaladoresDisponibles(fecha: Date) {
+  const fechaInicio = new Date(fecha);
+  fechaInicio.setHours(0, 0, 0, 0);
+  const fechaFin = new Date(fecha);
+  fechaFin.setHours(23, 59, 59, 999);
+
+  const instaladores = await prisma.usuario.findMany({
+    where: { rol: { in: ['INSTALADOR', 'JEFE_INSTALACIONES'] }, activo: true },
+    select: { id: true, nombre: true, apellidos: true },
+  });
+
+  const resultado = [];
+  for (const inst of instaladores) {
+    const obrasEseDia = await prisma.obraInstalador.count({
+      where: {
+        instaladorId: inst.id,
+        obra: {
+          fechaProgramada: { gte: fechaInicio, lte: fechaFin },
+          estado: { in: ['PROGRAMADA', 'INSTALANDO'] },
+          deletedAt: null,
+        },
+      },
+    });
+    resultado.push({
+      ...inst,
+      nombreCompleto: `${inst.nombre} ${inst.apellidos || ''}`.trim(),
+      obrasEseDia,
+      disponible: obrasEseDia === 0,
+    });
+  }
+
+  return resultado;
+}
+
+// ── Obras sin programar ──
+export async function obrasSinProgramar() {
+  return prisma.obra.findMany({
+    where: {
+      deletedAt: null,
+      estado: { in: ['REVISION_TECNICA', 'PREPARANDO', 'PENDIENTE_MATERIAL'] },
+      fechaProgramada: null,
+    },
+    include: {
+      cliente: { select: { nombre: true, apellidos: true } },
+    },
+    orderBy: { createdAt: 'asc' },
+  });
+}
+
+
+// ── Schedule semanal (para vista Gantt) ──
+// Devuelve instaladores con sus obras programadas en el rango
+export async function listarSchedule(desde: Date, hasta: Date) {
+  // 1. Todos los instaladores activos
+  const instaladores = await prisma.usuario.findMany({
+    where: { rol: { in: ['INSTALADOR', 'JEFE_INSTALACIONES'] }, activo: true },
+    select: { id: true, nombre: true, apellidos: true, rol: true },
+    orderBy: [{ rol: 'asc' }, { nombre: 'asc' }],
+  });
+
+  // 2. Obras programadas en el rango con sus instaladores
+  const obras = await prisma.obra.findMany({
+    where: {
+      deletedAt: null,
+      fechaProgramada: { gte: desde, lte: hasta },
+      estado: { in: ['PROGRAMADA', 'INSTALANDO', 'VALIDACION_OPERATIVA', 'REVISION_COORDINADOR'] },
+    },
+    include: {
+      cliente: { select: { nombre: true, apellidos: true } },
+      instaladores: {
+        include: { instalador: { select: { id: true, nombre: true, apellidos: true } } },
+      },
+    },
+    orderBy: { fechaProgramada: 'asc' },
+  });
+
+  // 3. Mapear: por cada instalador, sus obras de esa semana
+  const schedule = instaladores.map(inst => {
+    const obrasInst = obras.filter(o =>
+      o.instaladores.some(oi => oi.instaladorId === inst.id)
+    );
+    return {
+      id: inst.id,
+      nombre: inst.nombre,
+      apellidos: inst.apellidos || '',
+      rol: inst.rol,
+      esJefe: inst.rol === 'JEFE_INSTALACIONES',
+      obras: obrasInst.map(o => ({
+        id: o.id,
+        codigo: o.codigo,
+        tipo: o.tipo,
+        estado: o.estado,
+        fechaProgramada: o.fechaProgramada,
+        localidad: o.localidad,
+        potenciaKwp: o.potenciaKwp,
+        cliente: `${o.cliente.nombre} ${o.cliente.apellidos}`,
+        instaladores: o.instaladores.map(oi => ({
+          id: oi.instaladorId,
+          nombre: oi.instalador.nombre,
+          esJefe: oi.esJefe,
+        })),
+      })),
+    };
+  });
+
+  return schedule;
+}

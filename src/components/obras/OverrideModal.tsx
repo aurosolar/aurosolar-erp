@@ -18,7 +18,7 @@ interface OverrideModalProps {
 
 const MIN_CHARS = 10;
 
-export default function OverrideModal({
+export function OverrideModal({
   open,
   from,
   to,

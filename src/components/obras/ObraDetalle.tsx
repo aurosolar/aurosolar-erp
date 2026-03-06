@@ -1,12 +1,21 @@
 // src/components/obras/ObraDetalle.tsx
-// Sprint 2: Motor de gates integrado, TERMINADA eliminado
+// Sprint UX-1: Rediseño Stitch + BentoCards multi-dominio
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
+import { EditarPlanificacionModal } from '@/components/planificacion/EditarPlanificacionModal';
 import { GateBlocker } from './GateBlocker';
 import { OverrideModal } from './OverrideModal';
 import { ChecklistReview } from './ChecklistReview';
+import { ObraTimeline } from './ObraTimeline';
+import { MapaObra } from './MapaObra';
+import { NuevaIncidenciaModal } from '@/components/incidencias/NuevaIncidenciaModal';
+import { GestionIncidenciaModal } from '@/components/incidencias/GestionIncidenciaModal';
 
+// ═══════════════════════════════════════
+// TYPES
+// ═══════════════════════════════════════
 interface ObraDetalleData {
   id: string;
   codigo: string;
@@ -26,6 +35,8 @@ interface ObraDetalleData {
   localidad: string | null;
   provincia: string | null;
   direccionInstalacion: string | null;
+  latitud: number | null;
+  longitud: number | null;
   notas: string | null;
   fechaCreacion: string;
   fechaProgramada: string | null;
@@ -39,17 +50,19 @@ interface ObraDetalleData {
   instaladores: Array<{ instalador: { id: string; nombre: string; apellidos: string }; esJefe: boolean }>;
   planPagos: Array<{ id: string; concepto: string; importe: number; pagado: boolean; fechaPrevista: string | null; requiereParaEstado: string | null }>;
   pagos: Array<{ id: string; importe: number; metodo: string; fechaCobro: string; concepto: string | null; registradoPor: { nombre: string } }>;
-  actividades: Array<{ accion: string; detalle: string | null; createdAt: string; usuario: { nombre: string } }>;
-  incidencias: Array<{ id: string; gravedad: string; estado: string; descripcion: string; categoria: string | null; createdAt: string }>;
-  documentos: Array<{ id: string; tipo: string; nombre: string; createdAt: string }>;
+  actividades: Array<{ accion: string; detalle: string | null; createdAt: string; seq?: number | null; hash?: string | null; usuario: { nombre: string; apellidos?: string } }>;
+  incidencias: Array<{ id: string; gravedad: string; estado: string; descripcion: string; categoria: string | null; createdAt: string; slaHoras?: number | null; creadoPor?: { nombre: string } | null; asignadoA?: { id: string; nombre: string } | null; notasResolucion?: string | null; fotoUrl?: string | null; fechaResolucion?: string | null }>;
+  documentos: Array<{ id: string; tipo: string; nombre: string; mimeType: string | null; tamanoBytes: number | null; url: string | null; visible: boolean; createdAt: string }>;
   gastos: Array<{ id: string; tipo: string; importe: number; descripcion: string | null; estado: string; createdAt: string }>;
   checklistValidaciones?: Array<{
     id: string;
-    status: string;
-    resultado: string;
+    status: 'BORRADOR' | 'SUBMITIDA' | 'APROBADA' | 'RECHAZADA';
+    resultado: 'OK' | 'OK_CON_OBS' | 'NO_OK' | 'BORRADOR';
     serialInversor: string | null;
     serialBateria: string | null;
-    observaciones: string | null;
+    observacionesGenerales: string | null;
+    submittedAt: string | null;
+    reviewedAt: string | null;
     reviewNotes: string | null;
     reviewDecision: string | null;
     submittedBy: { nombre: string; apellidos: string } | null;
@@ -58,37 +71,353 @@ interface ObraDetalleData {
   }>;
 }
 
-interface GateResult {
-  gate: string;
-  passed: boolean;
-  reason?: string;
-  action?: { type: string; target?: string; field?: string; label: string };
-}
+interface GateResult { gate: string; passed: boolean; reason?: string; action?: { type: string; target?: string; field?: string; label: string } }
+interface TransitionEvaluation { allowed: boolean; isOverride: boolean; gates: GateResult[]; reasons: string[]; actions: Array<{ type: string; target?: string; field?: string; label: string }> }
 
-interface TransitionEvaluation {
-  allowed: boolean;
-  isOverride: boolean;
-  gates: GateResult[];
-  reasons: string[];
-  actions: Array<{ type: string; target?: string; field?: string; label: string }>;
-}
+// ═══════════════════════════════════════
+// CONFIG — State Machine
+// ═══════════════════════════════════════
+const STATES_ORDER = [
+  'REVISION_TECNICA', 'PREPARANDO', 'PENDIENTE_MATERIAL', 'PROGRAMADA',
+  'INSTALANDO', 'VALIDACION_OPERATIVA', 'REVISION_COORDINADOR',
+  'LEGALIZACION', 'LEGALIZADA', 'COMPLETADA',
+];
 
-const ESTADO_CONFIG: Record<string, { label: string; icon: string; bgClass: string; textClass: string }> = {
-  REVISION_TECNICA:      { label: 'Revisión técnica',     icon: '🔍', bgClass: 'bg-estado-purple/10', textClass: 'text-estado-purple' },
-  PREPARANDO:            { label: 'Preparando',           icon: '📋', bgClass: 'bg-estado-blue/10',   textClass: 'text-estado-blue' },
-  PENDIENTE_MATERIAL:    { label: 'Pte. Material',        icon: '📦', bgClass: 'bg-estado-amber/10',  textClass: 'text-estado-amber' },
-  PROGRAMADA:            { label: 'Programada',           icon: '📅', bgClass: 'bg-estado-blue/10',   textClass: 'text-estado-blue' },
-  INSTALANDO:            { label: 'Instalando',           icon: '⚡', bgClass: 'bg-estado-amber/10',  textClass: 'text-estado-amber' },
-  VALIDACION_OPERATIVA:  { label: 'Validación operativa', icon: '✅', bgClass: 'bg-estado-purple/10', textClass: 'text-estado-purple' },
-  REVISION_COORDINADOR:  { label: 'Revisión coordinador', icon: '👷', bgClass: 'bg-estado-purple/10', textClass: 'text-estado-purple' },
-  LEGALIZACION:          { label: 'Legalización',         icon: '📋', bgClass: 'bg-estado-blue/10',   textClass: 'text-estado-blue' },
-  LEGALIZADA:            { label: 'Legalizada',           icon: '✅', bgClass: 'bg-estado-green/10',  textClass: 'text-estado-green' },
-  COMPLETADA:            { label: 'Completada',           icon: '🏆', bgClass: 'bg-estado-green/10',  textClass: 'text-estado-green' },
-  CANCELADA:             { label: 'Cancelada',            icon: '❌', bgClass: 'bg-estado-red/10',    textClass: 'text-estado-red' },
+const STATE_META: Record<string, { label: string; short: string; icon: string }> = {
+  REVISION_TECNICA:     { label: 'Revisión técnica',     short: 'Revisión',     icon: '🔍' },
+  PREPARANDO:           { label: 'Preparando',           short: 'Preparando',   icon: '📋' },
+  PENDIENTE_MATERIAL:   { label: 'Pte. Material',        short: 'Material',     icon: '📦' },
+  PROGRAMADA:           { label: 'Programada',           short: 'Programada',   icon: '📅' },
+  INSTALANDO:           { label: 'Instalando',           short: 'Instalando',   icon: '⚡' },
+  VALIDACION_OPERATIVA: { label: 'Validación operativa', short: 'Validación',   icon: '✅' },
+  REVISION_COORDINADOR: { label: 'Revisión coordinador', short: 'Rev. Coord.',  icon: '👷' },
+  LEGALIZACION:         { label: 'Legalización',         short: 'Legalización', icon: '📋' },
+  LEGALIZADA:           { label: 'Legalizada',           short: 'Legalizada',   icon: '✅' },
+  COMPLETADA:           { label: 'Completada',           short: 'Completada',   icon: '🏆' },
+  CANCELADA:            { label: 'Cancelada',            short: 'Cancelada',    icon: '❌' },
 };
 
-type TabId = 'info' | 'pagos' | 'documentos' | 'timeline' | 'incidencias' | 'validacion';
+const TIPO_LABELS: Record<string, string> = {
+  RESIDENCIAL: 'Solar Residencial', INDUSTRIAL: 'Industrial', AGROINDUSTRIAL: 'Agroindustrial',
+  BATERIA: 'Batería', AEROTERMIA: 'Aerotermia', BESS: 'BESS', BACKUP: 'Backup',
+  ALQUILER_CUBIERTA: 'Alquiler cubierta', REPARACION: 'Reparación', SUSTITUCION: 'Sustitución',
+};
 
+// ═══════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════
+function fmtDate(iso: string | null) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+function fmtMoney(cents: number) {
+  return (cents / 100).toLocaleString('es-ES', { minimumFractionDigits: 2 }) + ' €';
+}
+
+// ═══════════════════════════════════════
+// SUB-COMPONENTS
+// ═══════════════════════════════════════
+
+// State Machine Stepper (Stitch-style)
+function StateMachine({ current, cancelada }: { current: string; cancelada: boolean }) {
+  if (cancelada) {
+    return (
+      <div className="flex items-center justify-center py-6">
+        <div className="flex items-center gap-2 px-4 py-2 bg-red-50 border border-red-200 rounded-xl">
+          <span className="w-3 h-3 rounded-full bg-red-500" />
+          <span className="text-sm font-bold text-red-700">Obra Cancelada</span>
+        </div>
+      </div>
+    );
+  }
+
+  const currentIdx = STATES_ORDER.indexOf(current);
+
+  return (
+    <div className="w-full overflow-x-auto py-6">
+      <div className="flex items-center min-w-[700px] px-6">
+        {STATES_ORDER.map((state, idx) => {
+          const meta = STATE_META[state];
+          const isComplete = idx < currentIdx;
+          const isCurrent = idx === currentIdx;
+          const isPending = idx > currentIdx;
+
+          return (
+            <div key={state} className="flex items-center flex-1 last:flex-none">
+              {/* Node */}
+              <div className="flex flex-col items-center gap-1.5 relative">
+                <div className={`w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold border-2 transition-all ${
+                  isComplete ? 'bg-emerald-500 border-emerald-500 text-white' :
+                  isCurrent ? 'bg-white border-emerald-500 text-emerald-600 shadow-md shadow-emerald-500/20' :
+                  'bg-slate-100 border-slate-200 text-slate-400'
+                }`}>
+                  {isComplete ? '✓' : isCurrent ? meta.icon : idx + 1}
+                </div>
+                <span className={`text-[10px] font-semibold text-center leading-tight max-w-[70px] ${
+                  isCurrent ? 'text-emerald-700' : isComplete ? 'text-slate-500' : 'text-slate-300'
+                }`}>
+                  {meta.short}
+                </span>
+                {isCurrent && (
+                  <span className="text-[9px] text-emerald-600 font-medium">En curso</span>
+                )}
+              </div>
+              {/* Connector line */}
+              {idx < STATES_ORDER.length - 1 && (
+                <div className={`flex-1 h-0.5 mx-1 rounded-full ${
+                  idx < currentIdx ? 'bg-emerald-500' : 'bg-slate-200'
+                }`} />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// BentoCard (from AI Studio)
+function BentoCard({ title, icon, status, children, action, className = '' }: {
+  title: string; icon: string; status?: 'green' | 'amber' | 'red' | 'blue' | 'gray';
+  children: React.ReactNode; action?: React.ReactNode; className?: string;
+}) {
+  const statusColors = {
+    green: 'border-l-emerald-500 bg-emerald-50/30',
+    amber: 'border-l-amber-500 bg-amber-50/30',
+    red: 'border-l-red-500 bg-red-50/30',
+    blue: 'border-l-blue-500 bg-blue-50/30',
+    gray: 'border-l-slate-300 bg-white',
+  };
+  const headerColors = {
+    green: 'text-emerald-700',
+    amber: 'text-amber-700',
+    red: 'text-red-700',
+    blue: 'text-blue-700',
+    gray: 'text-slate-600',
+  };
+
+  return (
+    <div className={`bg-white rounded-2xl border border-slate-200 border-l-4 shadow-sm overflow-hidden ${statusColors[status || 'gray']} ${className}`}>
+      <div className="px-5 py-3.5 flex items-center justify-between border-b border-slate-100">
+        <div className="flex items-center gap-2">
+          <span className="text-base">{icon}</span>
+          <h3 className={`text-sm font-bold uppercase tracking-wider ${headerColors[status || 'gray']}`}>{title}</h3>
+        </div>
+        {action}
+      </div>
+      <div className="p-5">{children}</div>
+    </div>
+  );
+}
+
+// Metric box
+function Metric({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
+  return (
+    <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+      <p className="text-[11px] text-slate-400 uppercase font-bold tracking-wider mb-1">{label}</p>
+      <p className={`text-xl font-extrabold leading-tight ${color || 'text-slate-800'}`}>{value}</p>
+      {sub && <p className="text-[10px] text-slate-400 mt-0.5">{sub}</p>}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════
+// ADD COBRO MODAL
+// ═══════════════════════════════════════
+function AddCobroModal({ obraId, obraCodigo, onSave, onClose }: {
+  obraId: string; obraCodigo: string;
+  onSave: () => void; onClose: () => void;
+}) {
+  const [importe, setImporte] = useState('');
+  const [metodo, setMetodo] = useState('TRANSFERENCIA');
+  const [concepto, setConcepto] = useState('');
+  const [fechaCobro, setFechaCobro] = useState(new Date().toISOString().split('T')[0]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleSave() {
+    if (!importe || Number(importe) <= 0) { setError('Introduce un importe válido'); return; }
+    setSaving(true);
+    setError('');
+    try {
+      const res = await fetch('/api/cobros', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' },
+        body: JSON.stringify({
+          obraId,
+          importe: Math.round(Number(importe) * 100),
+          metodo,
+          concepto: concepto || metodo,
+          fechaCobro: fechaCobro ? `${fechaCobro}T12:00:00.000Z` : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) { onSave(); onClose(); }
+      else setError(data.error || 'Error al registrar cobro');
+    } catch (e) { setError('Error de conexión'); }
+    setSaving(false);
+  }
+
+  const inputCls = "w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-emerald-400";
+  const labelCls = "text-[11px] text-slate-400 uppercase font-bold tracking-wider mb-1 block";
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+        <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+          <div>
+            <h3 className="text-base font-bold text-slate-800">Registrar cobro</h3>
+            <p className="text-xs text-slate-400">{obraCodigo}</p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-lg">✕</button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div>
+            <label className={labelCls}>Importe (€)</label>
+            <input type="number" step="0.01" min="0" value={importe}
+              onChange={e => setImporte(e.target.value)} className={inputCls}
+              placeholder="0.00" autoFocus />
+          </div>
+          <div>
+            <label className={labelCls}>Método</label>
+            <select value={metodo} onChange={e => setMetodo(e.target.value)} className={inputCls}>
+              <option value="TRANSFERENCIA">Transferencia</option>
+              <option value="EFECTIVO">Efectivo</option>
+              <option value="FINANCIACION">Financiación</option>
+              <option value="BIZUM">Bizum</option>
+              <option value="TARJETA">Tarjeta</option>
+            </select>
+          </div>
+          <div>
+            <label className={labelCls}>Concepto (opcional)</label>
+            <input value={concepto} onChange={e => setConcepto(e.target.value)} className={inputCls} placeholder="Ej: Primer pago, Anticipo..." />
+          </div>
+          <div>
+            <label className={labelCls}>Fecha cobro</label>
+            <input type="date" value={fechaCobro} onChange={e => setFechaCobro(e.target.value)} className={inputCls} />
+          </div>
+          {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg p-2">{error}</p>}
+        </div>
+        <div className="px-5 py-4 border-t border-slate-200 flex items-center justify-end gap-3">
+          <button onClick={onClose} className="h-10 px-4 text-sm font-semibold text-slate-500 hover:text-slate-700">Cancelar</button>
+          <button onClick={handleSave} disabled={saving}
+            className="h-10 px-6 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold rounded-lg disabled:opacity-50">
+            {saving ? 'Guardando...' : '💰 Registrar cobro'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════
+// EDIT OBRA MODAL
+// ═══════════════════════════════════════
+function EditObraModal({ obra, onSave, onClose }: {
+  obra: ObraDetalleData;
+  onSave: (campos: any) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [form, setForm] = useState({
+    direccionInstalacion: obra.direccionInstalacion || '',
+    localidad: obra.localidad || '',
+    provincia: obra.provincia || '',
+    potenciaKwp: obra.potenciaKwp ?? '',
+    numPaneles: obra.numPaneles ?? '',
+    inversor: obra.inversor || '',
+    bateriaKwh: obra.bateriaKwh ?? '',
+    notas: obra.notas || '',
+    presupuestoTotal: obra.presupuestoTotal,
+    costeTotal: obra.totalGastos,
+  });
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    setSaving(true);
+    const campos: any = {};
+    if (form.direccionInstalacion !== (obra.direccionInstalacion || '')) campos.direccionInstalacion = form.direccionInstalacion;
+    if (form.localidad !== (obra.localidad || '')) campos.localidad = form.localidad;
+    if (form.provincia !== (obra.provincia || '')) campos.provincia = form.provincia;
+    if (form.notas !== (obra.notas || '')) campos.notas = form.notas;
+    if (form.inversor !== (obra.inversor || '')) campos.inversor = form.inversor;
+    if (Number(form.potenciaKwp) !== (obra.potenciaKwp ?? 0)) campos.potenciaKwp = Number(form.potenciaKwp) || null;
+    if (Number(form.numPaneles) !== (obra.numPaneles ?? 0)) campos.numPaneles = Number(form.numPaneles) || null;
+    if (Number(form.bateriaKwh) !== (obra.bateriaKwh ?? 0)) campos.bateriaKwh = Number(form.bateriaKwh) || null;
+    if (form.presupuestoTotal !== obra.presupuestoTotal) campos.presupuestoTotal = Number(form.presupuestoTotal);
+    if (Object.keys(campos).length > 0) await onSave(campos);
+    else onClose();
+    setSaving(false);
+  }
+
+  const inputCls = "w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-emerald-400 transition-colors";
+  const labelCls = "text-[11px] text-slate-400 uppercase font-bold tracking-wider mb-1 block";
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+          <h3 className="text-base font-bold text-slate-800">Editar datos de obra</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-lg">✕</button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Dirección</label>
+              <input value={form.direccionInstalacion} onChange={e => setForm({...form, direccionInstalacion: e.target.value})} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Localidad</label>
+              <input value={form.localidad} onChange={e => setForm({...form, localidad: e.target.value})} className={inputCls} />
+            </div>
+          </div>
+          <div>
+            <label className={labelCls}>Provincia</label>
+            <input value={form.provincia} onChange={e => setForm({...form, provincia: e.target.value})} className={inputCls} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Potencia (kWp)</label>
+              <input type="number" step="0.1" value={form.potenciaKwp} onChange={e => setForm({...form, potenciaKwp: e.target.value})} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Nº Paneles</label>
+              <input type="number" value={form.numPaneles} onChange={e => setForm({...form, numPaneles: e.target.value})} className={inputCls} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Inversor</label>
+              <input value={form.inversor} onChange={e => setForm({...form, inversor: e.target.value})} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Batería (kWh)</label>
+              <input type="number" step="0.1" value={form.bateriaKwh} onChange={e => setForm({...form, bateriaKwh: e.target.value})} className={inputCls} />
+            </div>
+          </div>
+          <div>
+            <label className={labelCls}>Presupuesto (céntimos)</label>
+            <input type="number" value={form.presupuestoTotal} onChange={e => setForm({...form, presupuestoTotal: Number(e.target.value)})} className={inputCls} />
+          </div>
+          <div>
+            <label className={labelCls}>Notas</label>
+            <textarea value={form.notas} onChange={e => setForm({...form, notas: e.target.value})} rows={3}
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-emerald-400 transition-colors resize-none" />
+          </div>
+        </div>
+        <div className="px-5 py-4 border-t border-slate-200 flex items-center justify-end gap-3">
+          <button onClick={onClose} className="h-10 px-4 text-sm font-semibold text-slate-500 hover:text-slate-700 transition-colors">Cancelar</button>
+          <button onClick={handleSave} disabled={saving}
+            className="h-10 px-6 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold rounded-lg transition-colors disabled:opacity-50">
+            {saving ? 'Guardando...' : '✓ Guardar cambios'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════
+// MAIN COMPONENT
+// ═══════════════════════════════════════
 interface Props {
   obraId: string;
   userRol?: string;
@@ -99,7 +428,14 @@ interface Props {
 export function ObraDetalle({ obraId, userRol = 'ADMIN', onClose, onUpdate }: Props) {
   const [obra, setObra] = useState<ObraDetalleData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<TabId>('info');
+  const [activeSection, setActiveSection] = useState<'overview' | 'validacion'>('overview');
+  const [detailTab, setDetailTab] = useState<'detalles' | 'componentes' | 'documentos' | 'incidencias'>('detalles');
+  const [mostrarNuevaIncidencia, setMostrarNuevaIncidencia] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showAllActivity, setShowAllActivity] = useState(false);
+  const [showAddCobro, setShowAddCobro] = useState(false);
+  const [showEditPlan, setShowEditPlan] = useState(false);
+  const [incidenciaSeleccionada, setIncidenciaSeleccionada] = useState<any>(null);
 
   // Gate engine state
   const [estadoTarget, setEstadoTarget] = useState<string | null>(null);
@@ -126,458 +462,848 @@ export function ObraDetalle({ obraId, userRol = 'ADMIN', onClose, onUpdate }: Pr
     finally { setLoading(false); }
   }
 
-  // ── Pre-evaluar transición (GET evaluate-transition) ──
   const evaluateTransition = useCallback(async (targetEstado: string) => {
     setEstadoTarget(targetEstado);
     setEvaluation(null);
     setEvaluating(true);
     setErrorCambio('');
     setSuccessMsg('');
-
     try {
       const res = await fetch(`/api/obras/${obraId}/evaluate-transition?to=${targetEstado}`);
       const data = await res.json();
-      if (data.ok) {
-        setEvaluation(data.data);
-        // Si está permitido, mostrar confirmación directa
-        if (data.data.allowed) {
-          // Nada extra — el UI muestra botón de confirmar
-        }
-      } else {
-        setErrorCambio(data.error || 'Error al evaluar transición');
-      }
-    } catch (err) {
-      setErrorCambio('Error de conexión');
-    } finally {
-      setEvaluating(false);
-    }
+      if (data.ok) setEvaluation(data.data);
+      else setErrorCambio(data.error || 'Error al evaluar');
+    } catch { setErrorCambio('Error de conexión'); }
+    finally { setEvaluating(false); }
   }, [obraId]);
 
-  // ── Ejecutar cambio de estado (PATCH) ──
   async function ejecutarCambio(override = false) {
     if (!estadoTarget) return;
     setCambiandoEstado(true);
     setErrorCambio('');
-
     try {
       const body: any = { estado: estadoTarget };
       if (notaCambio.trim()) body.nota = notaCambio.trim();
       if (override) body.override = true;
-
-      const res = await fetch(`/api/obras/${obraId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
+      const res = await fetch(`/api/obras/${obraId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' }, body: JSON.stringify(body) });
       const data = await res.json();
-
       if (data.ok) {
-        const cfg = ESTADO_CONFIG[estadoTarget];
-        setSuccessMsg(`${cfg?.icon || '✅'} Cambiado a ${cfg?.label || estadoTarget}${override ? ' (override)' : ''}`);
-        setEstadoTarget(null);
-        setEvaluation(null);
-        setNotaCambio('');
-        setShowOverride(false);
+        setSuccessMsg(`Cambiado a ${STATE_META[estadoTarget]?.label || estadoTarget}`);
+        resetEstadoUI();
         await fetchObra();
         onUpdate();
       } else if (res.status === 422 && data.data) {
-        // Gates fallidos — actualizar evaluación
         setEvaluation(data.data);
       } else {
-        setErrorCambio(data.error || 'Error al cambiar estado');
+        setErrorCambio(data.error || 'Error');
       }
-    } catch (err) {
-      setErrorCambio('Error de conexión');
-    } finally {
-      setCambiandoEstado(false);
-    }
+    } catch { setErrorCambio('Error de conexión'); }
+    finally { setCambiandoEstado(false); }
   }
 
   function resetEstadoUI() {
-    setEstadoTarget(null);
-    setEvaluation(null);
-    setNotaCambio('');
-    setErrorCambio('');
-    setShowOverride(false);
+    setEstadoTarget(null); setEvaluation(null); setNotaCambio(''); setErrorCambio(''); setShowOverride(false);
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-2 border-auro-orange/30 border-t-auro-orange rounded-full animate-spin" />
-      </div>
-    );
-  }
+  // ── LOADING / ERROR ──
+  if (loading) return (
+    <div className="flex items-center justify-center h-64">
+      <div className="w-8 h-8 border-2 border-emerald-400/30 border-t-emerald-500 rounded-full animate-spin" />
+    </div>
+  );
+  if (!obra) return <div className="text-center text-slate-400 py-12">Obra no encontrada</div>;
 
-  if (!obra) {
-    return <div className="text-center text-auro-navy/40 py-12">Obra no encontrada</div>;
-  }
+  const isCancelada = obra.estado === 'CANCELADA';
+  const checklist = obra.checklistValidaciones?.[0];
 
-  const estadoCfg = ESTADO_CONFIG[obra.estado] || { label: obra.estado, icon: '❓', bgClass: 'bg-gray-100', textClass: 'text-gray-600' };
-
-  // Tabs con validación visible si procede
-  const tabs: { id: TabId; label: string; icon: string }[] = [
-    { id: 'info', label: 'Info', icon: '📋' },
-    { id: 'pagos', label: 'Pagos', icon: '💰' },
-    { id: 'documentos', label: 'Docs', icon: '📄' },
-    { id: 'timeline', label: 'Timeline', icon: '📊' },
-    { id: 'incidencias', label: 'Incidencias', icon: '⚠️' },
-  ];
-  // Mostrar tab validación si hay checklist o estado lo requiere
-  if (obra.checklistValidaciones?.length || ['VALIDACION_OPERATIVA', 'REVISION_COORDINADOR'].includes(obra.estado)) {
-    tabs.push({ id: 'validacion', label: 'Validación', icon: '✅' });
-  }
-
+  // ═══════════════════════════════════════
+  // RENDER
+  // ═══════════════════════════════════════
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-auro-border bg-white">
-        <div className="flex items-center gap-3">
-          <button onClick={onClose} className="text-auro-navy/40 hover:text-auro-navy transition-colors">
-            ← Volver
-          </button>
-          <h2 className="font-bold text-auro-navy">{obra.codigo}</h2>
-          <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${estadoCfg.bgClass} ${estadoCfg.textClass}`}>
-            {estadoCfg.icon} {estadoCfg.label}
-          </span>
-          {obra.tieneIncidenciaCritica && (
-            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-estado-red/10 text-estado-red">
-              🚨 Incidencia crítica
-            </span>
-          )}
+    <div className="flex flex-col h-full bg-slate-50">
+
+      {/* ── HEADER STITCH ── */}
+      <div className="bg-white border-b border-slate-200 px-4 lg:px-8 pt-4 pb-5">
+        {/* Breadcrumb */}
+        <div className="flex items-center gap-1.5 text-xs mb-4">
+          <Link href="/obras" className="text-emerald-600 hover:text-emerald-700 font-medium transition-colors">Obras</Link>
+          <span className="text-slate-300">›</span>
+          <span className="text-emerald-600 font-medium">{TIPO_LABELS[obra.tipo] || obra.tipo}</span>
+          <span className="text-slate-300">›</span>
+          <span className="text-slate-500">{obra.codigo}</span>
+        </div>
+
+        {/* Main header */}
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-3 mb-1.5">
+              <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase tracking-wide ${
+                isCancelada ? 'bg-red-100 text-red-700' :
+                ['COMPLETADA', 'LEGALIZADA'].includes(obra.estado) ? 'bg-emerald-100 text-emerald-700' :
+                'bg-emerald-100 text-emerald-700'
+              }`}>
+                {isCancelada ? 'Cancelada' : ['COMPLETADA', 'LEGALIZADA'].includes(obra.estado) ? 'Completada' : 'Activa'}
+              </span>
+              {obra.tieneIncidenciaCritica && (
+                <span className="px-2.5 py-1 bg-red-100 text-red-700 text-[11px] font-bold rounded-lg animate-pulse">⚠ Incidencia crítica</span>
+              )}
+            </div>
+            <h1 className="text-lg lg:text-3xl font-extrabold text-slate-800 tracking-tight mb-1">
+              {obra.cliente.nombre} {obra.cliente.apellidos}
+            </h1>
+              <div className="flex flex-wrap items-center gap-x-2 lg:gap-x-4 gap-y-0.5 text-[11px] lg:text-sm text-emerald-600">
+              {obra.direccionInstalacion && (
+                <span className="flex items-center gap-1">📍 {obra.direccionInstalacion}{obra.localidad ? `, ${obra.localidad}` : ''}{obra.provincia ? ` (${obra.provincia})` : ''}</span>
+              )}
+              {obra.cliente.telefono && (
+                <span className="flex items-center gap-1">📞 {obra.cliente.telefono}</span>
+              )}
+              <span className="flex items-center gap-1">📅 Creada: {fmtDate(obra.fechaCreacion)}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 pt-2">
+            <span className="hidden lg:inline text-xs text-slate-400 font-mono bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-200">{obra.codigo}</span>
+          </div>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 px-4 py-2 border-b border-auro-border bg-auro-surface overflow-x-auto">
-        {tabs.map(t => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
-              tab === t.id ? 'bg-auro-orange text-white' : 'text-auro-navy/60 hover:bg-auro-surface-2'
-            }`}
-          >
-            {t.icon} {t.label}
-          </button>
-        ))}
+      {/* ── STATE MACHINE ── */}
+      <div className="bg-white border-b border-slate-200">
+        <StateMachine current={obra.estado} cancelada={isCancelada} />
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-
-        {/* Success message */}
-        {successMsg && (
-          <div className="bg-estado-green/10 border border-estado-green/20 rounded-xl px-4 py-3 text-sm text-estado-green font-medium flex items-center justify-between">
-            <span>{successMsg}</span>
-            <button onClick={() => setSuccessMsg('')} className="text-estado-green/60 hover:text-estado-green">✕</button>
+      {/* ── TRANSITION CONTROLS ── */}
+      {obra.transicionesDisponibles.length > 0 && !isCancelada && (
+        <div className="bg-white border-b border-slate-200 px-4 lg:px-6 py-3">
+          {/* Mobile: select */}
+          <div className="lg:hidden flex items-center gap-2">
+            <span className="text-[10px] text-slate-400 font-semibold shrink-0">Estado:</span>
+            <select
+              value=""
+              onChange={e => { if (e.target.value) evaluateTransition(e.target.value); }}
+              className="flex-1 h-9 px-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium text-slate-700"
+            >
+              <option value="">Cambiar estado...</option>
+              {obra.transicionesDisponibles.map(t => (
+                <option key={t} value={t}>{STATE_META[t]?.icon} {STATE_META[t]?.label || t}</option>
+              ))}
+            </select>
           </div>
-        )}
+          {/* Desktop: buttons */}
+          <div className="hidden lg:flex items-center gap-3 flex-wrap">
+            <span className="text-xs text-slate-400 font-medium">Avanzar a:</span>
+            {obra.transicionesDisponibles.map(t => {
+              const meta = STATE_META[t];
+              const isSelected = estadoTarget === t;
+              return (
+                <button
+                  key={t}
+                  onClick={() => isSelected ? resetEstadoUI() : evaluateTransition(t)}
+                  className={`h-9 px-4 rounded-lg text-sm font-semibold border transition-all ${
+                    isSelected ? 'bg-emerald-500 text-white border-emerald-500' :
+                    'bg-white text-slate-600 border-slate-200 hover:border-emerald-300 hover:text-emerald-700'
+                  }`}
+                >
+                  {meta?.icon} {meta?.label || t}
+                </button>
+              );
+            })}
 
-        {/* ═══ CAMBIO DE ESTADO (siempre visible arriba) ═══ */}
-        {obra.transicionesDisponibles.length > 0 && (
-          <div className="bg-white border border-auro-border rounded-xl p-4 space-y-3">
-            <h3 className="text-xs font-bold text-auro-navy/60 uppercase">Cambiar estado</h3>
-
-            {/* Botones de transiciones disponibles */}
-            {!estadoTarget && (
-              <div className="flex flex-wrap gap-2">
-                {obra.transicionesDisponibles.map(est => {
-                  const cfg = ESTADO_CONFIG[est];
-                  if (!cfg) return null;
-                  return (
-                    <button
-                      key={est}
-                      onClick={() => evaluateTransition(est)}
-                      className="px-3 py-2 rounded-lg border border-auro-border text-xs font-medium hover:border-auro-orange/40 hover:bg-auro-orange/5 transition-colors min-h-[44px]"
-                    >
-                      {cfg.icon} {cfg.label}
-                    </button>
-                  );
-                })}
-              </div>
+            {/* Success message */}
+            {successMsg && (
+              <span className="text-xs text-emerald-600 font-medium bg-emerald-50 px-3 py-1 rounded-full">
+                ✓ {successMsg}
+              </span>
             )}
+          </div>
 
-            {/* Evaluando... */}
-            {evaluating && (
-              <div className="flex items-center gap-2 text-sm text-auro-navy/40">
-                <div className="w-4 h-4 border-2 border-auro-orange/30 border-t-auro-orange rounded-full animate-spin" />
-                Evaluando requisitos...
-              </div>
-            )}
-
-            {/* Resultado de evaluación */}
-            {estadoTarget && evaluation && !evaluating && (
-              <div className="space-y-3">
-                {evaluation.allowed ? (
-                  /* ✅ Gates pasan — confirmar */
-                  <div className="space-y-3">
-                    <div className="text-sm text-estado-green font-medium">
-                      ✅ Todos los requisitos cumplidos para {ESTADO_CONFIG[estadoTarget]?.label}
-                    </div>
-
-                    {/* Campo nota (obligatorio para cancelación/reapertura, opcional para el resto) */}
-                    {(estadoTarget === 'CANCELADA' || (obra.estado === 'CANCELADA' && estadoTarget === 'REVISION_TECNICA')) ? (
-                      <textarea
-                        value={notaCambio}
-                        onChange={(e) => setNotaCambio(e.target.value)}
-                        placeholder="Motivo obligatorio (mín. 10 caracteres)"
-                        rows={2}
-                        className="w-full px-3 py-2 bg-auro-surface-2 border border-auro-border rounded-lg text-sm placeholder-auro-navy/25 focus:outline-none focus:border-auro-orange/40"
-                      />
-                    ) : (
+          {/* Gate evaluation panel */}
+          {estadoTarget && (
+            <div className="mt-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+              {evaluating ? (
+                <div className="flex items-center gap-2 text-sm text-slate-400">
+                  <div className="w-4 h-4 border-2 border-slate-300 border-t-emerald-500 rounded-full animate-spin" />
+                  Evaluando gates...
+                </div>
+              ) : evaluation ? (
+                <div>
+                  <GateBlocker
+                    result={evaluation as any}
+                    from={obra.estado}
+                    to={estadoTarget!}
+                    canOverride={canOverride}
+                    onOverride={() => setShowOverride(true)}
+                  />
+                  {evaluation.allowed && (
+                    <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-200">
                       <input
                         value={notaCambio}
-                        onChange={(e) => setNotaCambio(e.target.value)}
-                        placeholder="Nota opcional"
-                        className="w-full h-10 px-3 bg-auro-surface-2 border border-auro-border rounded-lg text-sm placeholder-auro-navy/25 focus:outline-none focus:border-auro-orange/40"
+                        onChange={e => setNotaCambio(e.target.value)}
+                        placeholder="Nota opcional..."
+                        className="flex-1 h-9 px-3 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-emerald-400"
                       />
-                    )}
-
-                    <div className="flex gap-2">
                       <button
                         onClick={() => ejecutarCambio(false)}
                         disabled={cambiandoEstado}
-                        className="flex-1 h-11 bg-auro-orange hover:bg-auro-orange-dark text-white font-bold rounded-lg text-sm transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+                        className="h-9 px-5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold rounded-lg transition-colors disabled:opacity-50"
                       >
-                        {cambiandoEstado ? (
-                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        ) : (
-                          <>{ESTADO_CONFIG[estadoTarget]?.icon} Confirmar cambio</>
-                        )}
-                      </button>
-                      <button onClick={resetEstadoUI} className="px-4 h-11 border border-auro-border rounded-lg text-sm text-auro-navy/60 hover:bg-auro-surface-2">
-                        Cancelar
+                        {cambiandoEstado ? '...' : '✓ Confirmar'}
                       </button>
                     </div>
-                  </div>
-                ) : (
-                  /* ❌ Gates fallidos — mostrar GateBlocker */
-                  <div className="space-y-3">
-                    <GateBlocker
-                      gates={evaluation.gates}
-                      estadoTarget={estadoTarget}
-                      estadoLabel={ESTADO_CONFIG[estadoTarget]?.label || estadoTarget}
-                      canOverride={canOverride}
-                      onOverride={() => setShowOverride(true)}
-                      onCancel={resetEstadoUI}
-                    />
-                  </div>
-                )}
-              </div>
-            )}
+                  )}
+                  {errorCambio && (
+                    <p className="text-xs text-red-600 mt-2">{errorCambio}</p>
+                  )}
+                </div>
+              ) : errorCambio ? (
+                <p className="text-xs text-red-600">{errorCambio}</p>
+              ) : null}
+            </div>
+          )}
+        </div>
+      )}
 
-            {errorCambio && (
-              <div className="bg-estado-red/10 border border-estado-red/20 rounded-xl px-3 py-2 text-xs text-estado-red font-medium">
-                ⚠️ {errorCambio}
-              </div>
-            )}
+      {/* ── TOP NAV (simplified) ── */}
+      {(checklist || ['VALIDACION_OPERATIVA', 'REVISION_COORDINADOR'].includes(obra.estado)) && (
+        <div className="bg-white border-b border-slate-200 px-4 lg:px-8">
+          <div className="flex gap-1 -mb-px">
+            <button onClick={() => setActiveSection('overview')}
+              className={`px-5 py-3 text-sm font-semibold border-b-2 transition-colors ${activeSection === 'overview' ? 'border-emerald-500 text-emerald-700' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
+              📊 Vista general
+            </button>
+            <button onClick={() => setActiveSection('validacion')}
+              className={`px-5 py-3 text-sm font-semibold border-b-2 transition-colors ${activeSection === 'validacion' ? 'border-emerald-500 text-emerald-700' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
+              ✅ Validación
+            </button>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* ═══ TAB CONTENT ═══ */}
-        {tab === 'info' && (
-          <div className="space-y-4">
-            {/* Cliente */}
-            <div className="bg-white border border-auro-border rounded-xl p-4">
-              <h3 className="text-xs font-bold text-auro-navy/60 uppercase mb-2">Cliente</h3>
-              <p className="font-medium text-auro-navy">{obra.cliente.nombre} {obra.cliente.apellidos}</p>
-              {obra.cliente.telefono && <p className="text-sm text-auro-navy/60">{obra.cliente.telefono}</p>}
-              {obra.cliente.email && <p className="text-sm text-auro-navy/60">{obra.cliente.email}</p>}
-            </div>
+      {/* ── CONTENT ── */}
+      <div className="flex-1 overflow-auto p-5 lg:p-8">
 
-            {/* Datos técnicos */}
-            <div className="bg-white border border-auro-border rounded-xl p-4">
-              <h3 className="text-xs font-bold text-auro-navy/60 uppercase mb-2">Datos técnicos</h3>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div><span className="text-auro-navy/40">Tipo:</span> {obra.tipo}</div>
-                {obra.potenciaKwp && <div><span className="text-auro-navy/40">Potencia:</span> {obra.potenciaKwp} kWp</div>}
-                {obra.numPaneles && <div><span className="text-auro-navy/40">Paneles:</span> {obra.numPaneles}</div>}
-                {obra.inversor && <div><span className="text-auro-navy/40">Inversor:</span> {obra.inversor}</div>}
-                {obra.bateriaKwh && <div><span className="text-auro-navy/40">Batería:</span> {obra.bateriaKwh} kWh</div>}
-                {obra.direccionInstalacion && <div className="col-span-2"><span className="text-auro-navy/40">Dirección:</span> {obra.direccionInstalacion}</div>}
+        {/* ════ OVERVIEW ════ */}
+        {activeSection === 'overview' && (
+          <div className="space-y-5">
+
+            {/* ── ROW 1: Details (2/3) + Validación (1/3) ── */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+              {/* Col 1+2: Detalles con tabs (ocupa 2/3) */}
+              <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="border-b border-slate-200 px-3 lg:px-5 overflow-x-auto scrollbar-hide">
+                  <div className="flex -mb-px min-w-0">
+                    {[
+                      { id: 'detalles' as const, label: 'Detalles', labelLg: 'Detalles del sistema' },
+                      { id: 'componentes' as const, label: 'Equipo', labelLg: 'Componentes' },
+                      { id: 'documentos' as const, label: `Docs (${obra.documentos.length})`, labelLg: `Documentos (${obra.documentos.length})` },
+                      { id: 'incidencias' as const, label: `Inc.${obra.incidenciasAbiertas > 0 ? ` ${obra.incidenciasAbiertas}` : ''}`, labelLg: `Incidencias${obra.incidenciasAbiertas > 0 ? ` (${obra.incidenciasAbiertas})` : ''}` },
+                    ].map(t => (
+                      <button key={t.id} onClick={() => setDetailTab(t.id)}
+                        className={`px-3 lg:px-4 py-3 text-xs lg:text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${
+                          detailTab === t.id ? 'border-emerald-500 text-emerald-700' : 'border-transparent text-slate-400 hover:text-slate-600'
+                        }`}>
+                        <span className="lg:hidden">{t.label}</span>
+                        <span className="hidden lg:inline">{t.labelLg}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="p-6">
+                  {/* TAB: Detalles — compact layout */}
+                  {detailTab === 'detalles' && (
+                    <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                      {/* Left 3/5: Specs + Notas + Mapa compact */}
+                      <div className="lg:col-span-3 space-y-4">
+                        {/* Specs + Notas side by side */}
+                        <div className="flex items-start justify-between mb-1">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Sistema</h4>
+                          <button onClick={() => setShowEditModal(true)}
+                            className="h-7 px-2.5 bg-white border border-slate-200 hover:border-emerald-300 text-[10px] font-semibold text-slate-500 hover:text-emerald-700 rounded-lg transition-colors flex items-center gap-1">
+                            ✏️ Editar
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+                          {obra.potenciaKwp != null && (
+                            <div className="bg-emerald-50/50 rounded-lg p-3 border border-emerald-100">
+                              <p className="text-[10px] text-emerald-600 font-semibold">Potencia</p>
+                              <p className="text-lg font-extrabold text-slate-800">{obra.potenciaKwp} <span className="text-xs text-slate-400">kWp</span></p>
+                            </div>
+                          )}
+                          {obra.numPaneles != null && (
+                            <div className="bg-emerald-50/50 rounded-lg p-3 border border-emerald-100">
+                              <p className="text-[10px] text-emerald-600 font-semibold">Paneles</p>
+                              <p className="text-lg font-extrabold text-slate-800">{obra.numPaneles} <span className="text-xs text-slate-400">uds</span></p>
+                            </div>
+                          )}
+                          {obra.inversor && (
+                            <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                              <p className="text-[10px] text-slate-400 font-semibold">Inversor</p>
+                              <p className="text-sm font-bold text-slate-800">{obra.inversor}</p>
+                            </div>
+                          )}
+                          {obra.bateriaKwh != null && (
+                            <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                              <p className="text-[10px] text-slate-400 font-semibold">Batería</p>
+                              <p className="text-sm font-bold text-slate-800">{obra.bateriaKwh} kWh</p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Notas inline */}
+                        {obra.notas && (
+                          <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                            <p className="text-[10px] text-slate-400 font-semibold mb-1">Notas</p>
+                            <p className="text-xs text-slate-600 italic">{obra.notas}</p>
+                          </div>
+                        )}
+
+                        {/* Mapa real con Leaflet */}
+                        <MapaObra
+                          direccion={obra.direccionInstalacion}
+                          localidad={obra.localidad}
+                          provincia={obra.provincia}
+                          latitud={obra.latitud}
+                          longitud={obra.longitud}
+                          obraId={obra.id}
+                          onCoordsUpdate={(lat, lng) => {
+                            fetch(`/api/obras/${obra.id}`, {
+                              method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' },
+                              body: JSON.stringify({ latitud: lat, longitud: lng }),
+                            }).then(() => fetchObra());
+                          }}
+                        />
+                      </div>
+
+                      {/* Right 2/5: Registro de actividad */}
+                      <div className="lg:col-span-2">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4">Registro de actividad</h4>
+                        <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
+                          {obra.actividades.slice(0, showAllActivity ? 50 : 6).map((a, i) => {
+                            let det: any = {};
+                            try { det = a.detalle ? JSON.parse(a.detalle) : {}; } catch {}
+                            const isStateChange = a.accion.includes('ESTADO');
+                            const isOverride = a.accion.includes('OVERRIDE');
+                            return (
+                              <div key={i} className="flex gap-3">
+                                <div className={`w-2.5 h-2.5 rounded-full mt-1.5 shrink-0 ${
+                                  isOverride ? 'bg-red-400' : isStateChange ? 'bg-emerald-500' : 'bg-slate-300'
+                                }`} />
+                                <div className="flex-1">
+                                  <p className="text-sm font-bold text-slate-800">
+                                    {a.accion === 'ESTADO_CAMBIADO' && det.nuevoEstado
+                                      ? `→ ${STATE_META[det.nuevoEstado]?.label || det.nuevoEstado}`
+                                      : a.accion.replace(/_/g, ' ')
+                                    }
+                                  </p>
+                                  <p className="text-xs text-emerald-600 mt-0.5">{fmtDate(a.createdAt)} · {a.usuario.nombre}</p>
+                                  {det.nota && (
+                                    <div className="mt-1.5 pl-3 border-l-2 border-slate-200 text-xs text-slate-500 italic">
+                                      &ldquo;{det.nota}&rdquo;
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                          {!showAllActivity && obra.actividades.length > 6 && (
+                            <button onClick={() => setShowAllActivity(true)}
+                              className="w-full py-2 text-xs text-emerald-600 font-semibold hover:text-emerald-700 bg-slate-50 rounded-lg border border-slate-200 hover:bg-slate-100 transition-colors">
+                              Ver {obra.actividades.length - 6} actividades más ↓
+                            </button>
+                          )}
+                          {showAllActivity && obra.actividades.length > 6 && (
+                            <button onClick={() => setShowAllActivity(false)}
+                              className="w-full py-2 text-xs text-slate-400 font-semibold hover:text-slate-600 bg-slate-50 rounded-lg border border-slate-200 hover:bg-slate-100 transition-colors">
+                              Mostrar menos ↑
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {/* TAB: Componentes */}
+                  {detailTab === 'componentes' && (
+                    <div className="space-y-3">
+                      {[
+                        { nombre: obra.inversor || 'Inversor', tipo: 'Inversor', cantidad: 1, icon: '⚡' },
+                        ...(obra.numPaneles ? [{ nombre: `Panel ${obra.potenciaKwp ? Math.round((obra.potenciaKwp * 1000) / (obra.numPaneles || 1)) + 'W' : ''}`, tipo: 'Panel solar', cantidad: obra.numPaneles, icon: '☀️' }] : []),
+                        ...(obra.bateriaKwh ? [{ nombre: `Batería ${obra.bateriaKwh} kWh`, tipo: 'Almacenamiento', cantidad: 1, icon: '🔋' }] : []),
+                        { nombre: 'Estructura montaje', tipo: 'Estructura', cantidad: 1, icon: '🔧' },
+                        { nombre: 'Cableado DC/AC', tipo: 'Cableado', cantidad: 1, icon: '🔌' },
+                        { nombre: 'Protecciones', tipo: 'Protecciones', cantidad: 1, icon: '🛡️' },
+                      ].map((comp, i) => (
+                        <div key={i} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                          <div className="w-10 h-10 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-lg">{comp.icon}</div>
+                          <div className="flex-1"><p className="text-sm font-bold text-slate-800">{comp.nombre}</p><p className="text-[10px] text-slate-400">{comp.tipo}</p></div>
+                          <span className="text-sm font-bold text-slate-600">x{comp.cantidad}</span>
+                        </div>
+                      ))}
+                      <p className="text-[10px] text-slate-300 text-center italic">Componentes detallados próximamente</p>
+                    </div>
+                  )}
+                  {/* TAB: Documentos */}
+                  {detailTab === 'documentos' && (
+                    <div>
+                      {/* Upload buttons by category */}
+                      <div className="grid grid-cols-3 lg:grid-cols-6 gap-2 mb-5">
+                        {[
+                          { tipo: 'PRESUPUESTO', label: 'Ppto', icon: '📋' },
+                          { tipo: 'FACTURA', label: 'Factura', icon: '🧾' },
+                          { tipo: 'CONTRATO', label: 'Contrato', icon: '📝' },
+                          { tipo: 'BOLETIN', label: 'Boletín', icon: '⚡' },
+                          { tipo: 'FOTO_INSTALACION', label: 'Foto', icon: '📷' },
+                          { tipo: 'OTRO', label: 'Otro', icon: '📎' },
+                        ].map(cat => (
+                          <label key={cat.tipo} className="flex flex-col items-center gap-1 p-3 bg-slate-50 rounded-xl border-2 border-dashed border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/30 cursor-pointer transition-colors group">
+                            <input type="file" className="hidden" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                const fd = new FormData();
+                                fd.append('archivo', file);
+                                fd.append('obraId', obra.id);
+                                fd.append('tipo', cat.tipo);
+                                try {
+                                  const res = await fetch('/api/documentos', { method: 'POST', body: fd });
+                                  const data = await res.json();
+                                  if (data.ok) fetchObra();
+                                  else alert(data.error || 'Error al subir');
+                                } catch { alert('Error de conexión'); }
+                                e.target.value = '';
+                              }} />
+                            <span className="text-xl group-hover:scale-110 transition-transform">{cat.icon}</span>
+                            <span className="text-[10px] font-semibold text-slate-500 group-hover:text-emerald-700">{cat.label}</span>
+                          </label>
+                        ))}
+                      </div>
+
+                      {/* Document list */}
+                      {obra.documentos.length === 0 ? (
+                        <div className="text-center py-6 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                          <span className="text-2xl block mb-1">📄</span>
+                          <p className="text-sm text-slate-400">Sin documentos</p>
+                          <p className="text-[10px] text-slate-300 mt-1">Sube archivos usando los botones de arriba</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {obra.documentos.map(d => {
+                            const icon = d.tipo.includes('FOTO') ? '📷' : d.tipo === 'PRESUPUESTO' ? '📋' : d.tipo === 'FACTURA' ? '🧾' : d.tipo === 'CONTRATO' ? '📝' : d.tipo === 'BOLETIN' ? '⚡' : d.tipo === 'CERTIFICADO' ? '🏅' : d.tipo === 'MEMORIA_TECNICA' ? '📐' : d.tipo === 'JUSTIFICANTE_PAGO' ? '💳' : '📄';
+                            const badgeColor = d.tipo === 'PRESUPUESTO' ? 'bg-blue-100 text-blue-700' : d.tipo === 'FACTURA' ? 'bg-amber-100 text-amber-700' : d.tipo === 'CONTRATO' ? 'bg-purple-100 text-purple-700' : d.tipo.includes('BOLETIN') ? 'bg-yellow-100 text-yellow-700' : d.tipo.includes('FOTO') ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600';
+                            const sizeStr = d.tamanoBytes ? (d.tamanoBytes > 1048576 ? `${(d.tamanoBytes / 1048576).toFixed(1)} MB` : `${Math.round(d.tamanoBytes / 1024)} KB`) : '';
+                            return (
+                              <div key={d.id} className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-200 hover:border-emerald-200 hover:shadow-sm transition-all group">
+                                <div className="w-10 h-10 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center text-lg shrink-0">{icon}</div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-slate-800 truncate">{d.nombre}</p>
+                                  <div className="flex items-center gap-2 mt-0.5">
+                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${badgeColor}`}>{d.tipo.replace(/_/g, ' ')}</span>
+                                    <span className="text-[10px] text-slate-400">{fmtDate(d.createdAt)}</span>
+                                    {sizeStr && <span className="text-[10px] text-slate-300">{sizeStr}</span>}
+                                    {d.visible && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">PORTAL</span>}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                                  {d.url && (
+                                    <a href={d.url} target="_blank" rel="noopener"
+                                      className="w-8 h-8 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 flex items-center justify-center text-sm transition-colors" title="Descargar">
+                                      ⬇️
+                                    </a>
+                                  )}
+                                  <button onClick={async () => {
+                                    const res = await fetch('/api/documentos/' + d.id, { method: 'PATCH' });
+                                    if (res.ok) fetchObra();
+                                  }} className="w-8 h-8 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 flex items-center justify-center text-sm transition-colors"
+                                    title={d.visible ? 'Ocultar del portal' : 'Mostrar en portal'}>
+                                    {d.visible ? '👁️' : '👁️‍🗨️'}
+                                  </button>
+                                  <button onClick={async () => {
+                                    if (!confirm('¿Eliminar este documento?')) return;
+                                    const res = await fetch('/api/documentos/' + d.id, { method: 'DELETE' });
+                                    if (res.ok) fetchObra();
+                                  }} className="w-8 h-8 rounded-lg bg-red-50 hover:bg-red-100 border border-red-200 flex items-center justify-center text-sm transition-colors" title="Eliminar">
+                                    🗑️
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {/* TAB: Incidencias */}
+                  {detailTab === 'incidencias' && (
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-xs text-slate-400 font-bold">Incidencias</span>
+                        <button onClick={() => setMostrarNuevaIncidencia(true)} className="h-8 px-3 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold rounded-lg">+ Nueva</button>
+                      </div>
+                      {obra.incidencias.length === 0 ? (
+                        <div className="text-center py-6"><span className="text-2xl block mb-1">✅</span><p className="text-sm text-slate-400">Sin incidencias</p></div>
+                      ) : (
+                        <div className="space-y-2">
+                          {obra.incidencias.map(inc => (
+                            <div key={inc.id} onClick={() => setIncidenciaSeleccionada(inc)}
+                              className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer hover:bg-slate-50 ${
+                                inc.gravedad === 'CRITICA' && (inc.estado === 'ABIERTA' || inc.estado === 'EN_PROCESO') ? 'border-red-200 bg-red-50/50' : 'border-slate-200'
+                              }`}>
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className={`shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                  inc.gravedad === 'CRITICA' ? 'bg-red-100 text-red-700' : inc.gravedad === 'ALTA' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'
+                                }`}>{inc.gravedad}</span>
+                                <span className="text-xs text-slate-700 truncate">{inc.descripcion}</span>
+                              </div>
+                              <span className={`shrink-0 ml-2 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                                inc.estado === 'ABIERTA' ? 'bg-red-100 text-red-600' : inc.estado === 'EN_PROCESO' ? 'bg-amber-100 text-amber-600' : 'bg-green-100 text-green-600'
+                              }`}>{inc.estado}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {mostrarNuevaIncidencia && (
+                        <NuevaIncidenciaModal obraId={obra.id} obraCodigo={obra.codigo}
+                          onCreated={() => { setMostrarNuevaIncidencia(false); fetchObra(); }}
+                          onClose={() => setMostrarNuevaIncidencia(false)} />
+                      )}
+                      {incidenciaSeleccionada && (
+                        <GestionIncidenciaModal incidencia={incidenciaSeleccionada}
+                          onUpdated={() => { setIncidenciaSeleccionada(null); fetchObra(); }}
+                          onClose={() => setIncidenciaSeleccionada(null)} />
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
 
-            {/* Financiero */}
-            <div className="bg-white border border-auro-border rounded-xl p-4">
-              <h3 className="text-xs font-bold text-auro-navy/60 uppercase mb-2">Financiero</h3>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div><span className="text-auro-navy/40">Presupuesto:</span> {(obra.presupuestoTotal / 100).toFixed(2)}€</div>
-                <div><span className="text-auro-navy/40">Cobrado:</span> {(obra.totalCobrado / 100).toFixed(2)}€ ({obra.porcentajeCobro}%)</div>
-                <div><span className="text-auro-navy/40">Pendiente:</span> {(obra.pendiente / 100).toFixed(2)}€</div>
-                <div><span className="text-auro-navy/40">Gastos:</span> {(obra.totalGastos / 100).toFixed(2)}€</div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {tab === 'pagos' && (
-          <div className="space-y-4">
-            {/* Plan de pagos */}
-            <div className="bg-white border border-auro-border rounded-xl p-4">
-              <h3 className="text-xs font-bold text-auro-navy/60 uppercase mb-2">Plan de pagos</h3>
-              {obra.planPagos.length === 0 ? (
-                <p className="text-sm text-auro-navy/40">Sin plan de pagos definido</p>
-              ) : (
-                <div className="space-y-2">
-                  {obra.planPagos.map(h => (
-                    <div key={h.id} className="flex items-center justify-between text-sm">
-                      <div className="flex items-center gap-2">
-                        <span>{h.pagado ? '✅' : '⏳'}</span>
-                        <span className={h.pagado ? 'text-auro-navy' : 'text-auro-navy/60'}>{h.concepto}</span>
-                        {h.requiereParaEstado && (
-                          <span className="px-1.5 py-0.5 bg-estado-amber/10 text-estado-amber text-[10px] rounded font-medium">
-                            req. {ESTADO_CONFIG[h.requiereParaEstado]?.label || h.requiereParaEstado}
+              {/* Col 3: Validación y QA */}
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="px-5 py-3.5 border-b border-slate-100 flex items-center gap-2 bg-purple-50/30">
+                  <span className="text-base">✅</span>
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-purple-700">Validación y QA</h3>
+                </div>
+                <div className="p-5">
+                  <div className="flex items-center justify-between mb-5">
+                    <p className="text-xs text-slate-400 uppercase font-bold">Estado</p>
+                    <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold ${
+                      checklist?.status === 'APROBADA' ? 'bg-emerald-100 text-emerald-700' :
+                      checklist?.status === 'SUBMITIDA' ? 'bg-amber-100 text-amber-700' :
+                      checklist?.status === 'RECHAZADA' ? 'bg-red-100 text-red-700' :
+                      'bg-slate-100 text-slate-500'
+                    }`}>
+                      {checklist?.status === 'APROBADA' ? 'Aprobada' : checklist?.status === 'SUBMITIDA' ? 'Pdte revisión' : checklist?.status === 'RECHAZADA' ? 'Rechazada' : 'Sin validación'}
+                    </span>
+                  </div>
+                  {checklist ? (
+                    <div className="space-y-2.5">
+                      {checklist.items.map(item => (
+                        <div key={item.codigo} className="flex items-center gap-2 py-1">
+                          <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${
+                            item.respuesta === 'OK' ? 'bg-emerald-100 text-emerald-600' :
+                            item.respuesta === 'NO_OK' ? 'bg-red-100 text-red-600' :
+                            item.respuesta === 'NA' ? 'bg-slate-100 text-slate-400' :
+                            'bg-amber-100 text-amber-600'
+                          }`}>{item.respuesta === 'OK' ? '✓' : item.respuesta === 'NO_OK' ? '✕' : '?'}</span>
+                          <span className={`text-xs flex-1 ${item.critico ? 'font-semibold' : ''} ${item.respuesta === 'NO_OK' ? 'text-red-700' : 'text-slate-600'}`}>
+                            {item.label}{item.critico && <span className="text-red-400 ml-0.5">*</span>}
                           </span>
-                        )}
-                      </div>
-                      <span className="font-medium">{(h.importe / 100).toFixed(2)}€</span>
+                        </div>
+                      ))}
+                      {(checklist.serialInversor || checklist.serialBateria) && (
+                        <div className="pt-3 border-t border-slate-100 space-y-1.5">
+                          {checklist.serialInversor && <div className="flex justify-between text-xs"><span className="text-slate-400">S/N Inversor</span><span className="text-slate-700 font-mono text-[10px]">{checklist.serialInversor}</span></div>}
+                          {checklist.serialBateria && <div className="flex justify-between text-xs"><span className="text-slate-400">S/N Batería</span><span className="text-slate-700 font-mono text-[10px]">{checklist.serialBateria}</span></div>}
+                        </div>
+                      )}
+                      {checklist.submittedBy && (
+                        <p className="pt-2 border-t border-slate-100 text-[10px] text-slate-400">
+                          Enviado por <span className="text-slate-600 font-medium">{checklist.submittedBy.nombre}</span> · {checklist.submittedAt ? fmtDate(checklist.submittedAt) : ''}
+                        </p>
+                      )}
+                      {checklist.status === 'SUBMITIDA' && canReview && (
+                        <button onClick={() => setActiveSection('validacion')}
+                          className="w-full h-10 bg-purple-500 hover:bg-purple-600 text-white text-sm font-bold rounded-xl transition-colors mt-2">
+                          Revisar validación
+                        </button>
+                      )}
                     </div>
-                  ))}
+                  ) : (
+                    <div className="bg-slate-50 rounded-xl border border-slate-200 p-5 text-center">
+                      <span className="text-3xl block mb-2">🕐</span>
+                      <p className="text-sm font-medium text-slate-600 mb-1">Esperando validación</p>
+                      <p className="text-xs text-slate-400">El instalador completará el checklist al finalizar</p>
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
 
-            {/* Pagos realizados */}
-            <div className="bg-white border border-auro-border rounded-xl p-4">
-              <h3 className="text-xs font-bold text-auro-navy/60 uppercase mb-2">Cobros registrados</h3>
-              {obra.pagos.length === 0 ? (
-                <p className="text-sm text-auro-navy/40">Sin cobros registrados</p>
-              ) : (
-                <div className="space-y-2">
-                  {obra.pagos.map(p => (
-                    <div key={p.id} className="flex items-center justify-between text-sm">
-                      <div>
-                        <span className="font-medium">{(p.importe / 100).toFixed(2)}€</span>
-                        <span className="text-auro-navy/40 ml-2">{p.metodo}</span>
-                        {p.concepto && <span className="text-auro-navy/40 ml-2">— {p.concepto}</span>}
-                      </div>
-                      <span className="text-xs text-auro-navy/40">{new Date(p.fechaCobro).toLocaleDateString('es-ES')}</span>
-                    </div>
-                  ))}
+            {/* ── ROW 2: Financiero + Ejecución + Legalización ── */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+              {/* Control Financiero */}
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="px-5 py-3.5 border-b border-slate-100 flex items-center gap-2">
+                  <span className="text-base">💰</span>
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-slate-600">Control Financiero</h3>
+                  <button onClick={() => setShowAddCobro(true)}
+                    className="ml-auto h-7 px-2.5 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold rounded-lg transition-colors flex items-center gap-1">
+                    + Cobro
+                  </button>
                 </div>
-              )}
+                <div className="p-5">
+                  <div className="grid grid-cols-2 gap-2.5 mb-4">
+                    <div className="bg-slate-50 rounded-lg p-3 border border-slate-100"><p className="text-[10px] text-slate-400 uppercase font-bold">Presupuesto</p><p className="text-lg font-extrabold text-slate-800">{fmtMoney(obra.presupuestoTotal)}</p></div>
+                    <div className="bg-emerald-50/50 rounded-lg p-3 border border-emerald-100"><p className="text-[10px] text-emerald-600 uppercase font-bold">Cobrado</p><p className="text-lg font-extrabold text-emerald-700">{fmtMoney(obra.totalCobrado)}</p></div>
+                    <div className="bg-slate-50 rounded-lg p-3 border border-slate-100"><p className="text-[10px] text-slate-400 uppercase font-bold">Pendiente</p><p className={`text-lg font-extrabold ${obra.pendiente > 0 ? 'text-amber-600' : 'text-emerald-700'}`}>{fmtMoney(obra.pendiente)}</p></div>
+                    <div className="bg-slate-50 rounded-lg p-3 border border-slate-100"><p className="text-[10px] text-slate-400 uppercase font-bold">Margen</p><p className={`text-lg font-extrabold ${obra.margen >= 25 ? 'text-emerald-700' : obra.margen >= 15 ? 'text-amber-600' : 'text-red-600'}`}>{obra.margen}%</p></div>
+                  </div>
+                  <div className="flex gap-4 items-start pt-3 border-t border-slate-100">
+                    <div className="shrink-0 relative w-32 h-32">
+                      <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
+                        <circle cx="18" cy="18" r="15.9" fill="none" stroke="#E2E8F0" strokeWidth="3" />
+                        <circle cx="18" cy="18" r="15.9" fill="none" stroke="#10B981" strokeWidth="3" strokeDasharray={`${obra.porcentajeCobro}, 100`} strokeLinecap="round" />
+                      </svg>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <span className="text-2xl font-extrabold text-slate-800">{obra.porcentajeCobro}%</span>
+                        <span className="text-[8px] text-slate-400">Cobrado</span>
+                      </div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      {obra.pagos.length > 0 ? (
+                        <div className="space-y-1 max-h-24 overflow-y-auto">
+                          {obra.pagos.slice(0, 4).map(p => (
+                            <div key={p.id} className="flex justify-between text-xs">
+                              <div><span className="text-slate-600">{p.concepto || p.metodo}</span><p className="text-[9px] text-slate-400">{fmtDate(p.fechaCobro)}</p></div>
+                              <span className="text-emerald-700 font-bold shrink-0 ml-2">{fmtMoney(p.importe)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : <p className="text-xs text-slate-300">Sin cobros</p>}
+                    </div>
+                  </div>
+                  {obra.planPagos.length > 0 && (
+                    <div className="pt-3 border-t border-slate-100 mt-3 space-y-1.5">
+                      <p className="text-[10px] text-slate-400 uppercase font-bold mb-2">Plan de pagos</p>
+                      {obra.planPagos.map((hp, idx) => (
+                        <div key={hp.id} className={`flex items-center gap-2 p-2 rounded-lg border text-xs ${hp.pagado ? 'bg-emerald-50/50 border-emerald-100' : 'border-slate-200'}`}>
+                          <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] ${hp.pagado ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'}`}>{hp.pagado ? '✓' : idx + 1}</span>
+                          <span className={`flex-1 ${hp.pagado ? 'text-slate-400' : 'text-slate-700 font-medium'}`}>{hp.concepto}</span>
+                          <span className={`font-bold ${hp.pagado ? 'text-emerald-600' : 'text-slate-700'}`}>{fmtMoney(hp.importe)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Ejecución Física */}
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="px-5 py-3.5 border-b border-slate-100 flex items-center gap-2 bg-amber-50/30">
+                  <span className="text-base">⚡</span>
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-amber-700">Ejecución Física</h3>
+                </div>
+                <div className="p-5">
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-xs text-slate-400 uppercase font-bold">Estado</p>
+                    <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold ${
+                      ['INSTALANDO'].includes(obra.estado) ? 'bg-amber-100 text-amber-700' :
+                      ['COMPLETADA', 'LEGALIZADA'].includes(obra.estado) ? 'bg-emerald-100 text-emerald-700' :
+                      ['PROGRAMADA'].includes(obra.estado) ? 'bg-blue-100 text-blue-700' :
+                      'bg-slate-100 text-slate-500'
+                    }`}>{STATE_META[obra.estado]?.label || obra.estado}</span>
+                  </div>
+                  {['REVISION_TECNICA', 'PREPARANDO', 'PENDIENTE_MATERIAL'].includes(obra.estado) && !obra.fechaProgramada && (
+                    <div className="bg-blue-50 rounded-lg border border-blue-100 p-3 mb-3 flex items-center justify-between">
+                      <div><p className="text-xs font-bold text-blue-800">{obra.estado === 'PENDIENTE_MATERIAL' ? '📦 Material pdte' : '📋 En preparación'}</p><p className="text-[10px] text-blue-600">Programa la instalación</p></div>
+                      <button onClick={() => window.location.href = '/planificacion'} className="h-8 px-3 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold rounded-lg">📅 Programar</button>
+                    </div>
+                  )}
+                  <div className="bg-slate-50 rounded-lg border border-slate-200 p-4">
+                    <div className="grid grid-cols-3 gap-3 mb-3">
+                      <div><p className="text-[10px] text-slate-400 font-semibold">Inicio</p><p className="text-sm font-bold text-slate-800">{obra.fechaProgramada ? fmtDate(obra.fechaProgramada) : obra.fechaInicio ? fmtDate(obra.fechaInicio) : '—'}</p></div>
+                      <div><p className="text-[10px] text-slate-400 font-semibold">Fin previsto</p><p className="text-sm font-bold text-slate-800">{obra.fechaFin ? fmtDate(obra.fechaFin) : '—'}</p></div>
+                      <div><p className="text-[10px] text-slate-400 font-semibold">Duración</p><p className="text-sm font-bold text-slate-800">{obra.fechaProgramada && obra.fechaFin ? `${Math.ceil((new Date(obra.fechaFin).getTime() - new Date(obra.fechaProgramada).getTime()) / 86400000)}d` : '—'}</p></div>
+                    </div>
+                    <p className="text-[10px] text-slate-400 font-semibold mb-2">👥 Equipo</p>
+                    {obra.instaladores.length > 0 ? (
+                      <div className="space-y-1.5">
+                        {obra.instaladores.map(({ instalador, esJefe }) => (
+                          <div key={instalador.id} className="flex items-center gap-2.5 p-2 bg-white rounded-lg border border-slate-100">
+                            <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-[10px] font-bold text-emerald-700">{instalador.nombre[0]}{instalador.apellidos?.[0] || ''}</div>
+                            <div className="flex-1"><p className="text-xs font-bold text-slate-800">{instalador.nombre} {instalador.apellidos}</p><p className="text-[10px] text-slate-400">{esJefe ? 'Jefe de obra' : 'Instalador'}</p></div>
+                            {esJefe && <span className="text-[8px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-bold">LEAD</span>}
+                          </div>
+                        ))}
+                      </div>
+                    ) : <p className="text-[10px] text-slate-300 italic">Sin equipo asignado</p>}
+                  </div>
+                  {obra.fechaProgramada && !['PROGRAMADA'].includes(obra.estado) && !['COMPLETADA', 'CANCELADA', 'LEGALIZADA'].includes(obra.estado) && (
+                    <div className="mt-3">
+                      <button onClick={() => setShowEditPlan(true)}
+                        className="w-full h-9 bg-white hover:bg-blue-50 text-blue-600 text-xs font-bold rounded-lg border border-blue-200 hover:border-blue-300 transition-colors">
+                        📅 Editar planificación
+                      </button>
+                    </div>
+                  )}
+                  {['PROGRAMADA'].includes(obra.estado) && (
+                    <div className="mt-3 space-y-2">
+                      <button onClick={async () => {
+                        if (!confirm('¿Desprogramar esta obra? Se eliminará la fecha y las jornadas programadas.')) return;
+                        try {
+                          const res = await fetch(`/api/obras/${obra.id}`, {
+                            method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' },
+                            body: JSON.stringify({ desprogramar: true }),
+                          });
+                          const data = await res.json();
+                          if (data.ok) fetchObra();
+                          else alert(data.error || 'Error');
+                        } catch { alert('Error de conexión'); }
+                      }} className="w-full h-9 bg-white hover:bg-red-50 text-red-600 text-xs font-bold rounded-lg border border-red-200 hover:border-red-300 transition-colors">
+                        ✕ Desprogramar obra
+                      </button>
+                      <button onClick={() => setShowEditPlan(true)}
+                        className="w-full h-9 bg-white hover:bg-blue-50 text-blue-600 text-xs font-bold rounded-lg border border-blue-200 hover:border-blue-300 transition-colors">
+                        📅 Editar planificación
+                      </button>
+                      <button className="w-full h-10 bg-slate-800 hover:bg-slate-900 text-white text-sm font-bold rounded-xl transition-colors">⚡ Iniciar Instalación</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Legalización */}
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="px-5 py-3.5 border-b border-slate-100 flex items-center gap-2 bg-blue-50/30">
+                  <span className="text-base">📋</span>
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-blue-700">Legalización</h3>
+                </div>
+                <div className="p-5">
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-xs text-slate-400 uppercase font-bold">Estado</p>
+                    <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold ${
+                      ['LEGALIZADA', 'COMPLETADA'].includes(obra.estado) ? 'bg-emerald-100 text-emerald-700' :
+                      ['LEGALIZACION'].includes(obra.estado) ? 'bg-amber-100 text-amber-700' :
+                      'bg-slate-100 text-slate-500'
+                    }`}>{['LEGALIZADA', 'COMPLETADA'].includes(obra.estado) ? 'Legalizada' : ['LEGALIZACION'].includes(obra.estado) ? 'En proceso' : 'Pendiente'}</span>
+                  </div>
+                  <div className="space-y-2 mb-4">
+                    {[
+                      { nombre: 'Rep. Voluntaria', tipo: 'REP_VOLUNTARIA', keywords: ['voluntaria', 'representaci'] },
+                      { nombre: 'Memoria Técnica', tipo: 'MEMORIA_TECNICA', keywords: ['memoria'] },
+                      { nombre: 'CIE (Boletín)', tipo: 'BOLETIN', keywords: ['cie', 'bolet'] },
+                      { nombre: 'Cert. instalación', tipo: 'CERT_INSTALACION', keywords: ['certificado', 'instalaci'] },
+                      { nombre: 'Contrato suministro', tipo: 'CONTRATO', keywords: ['contrato', 'suministro'] },
+                    ].map((item, i) => {
+                      const doc = obra.documentos.find(d =>
+                        d.tipo === item.tipo || item.keywords.some(k => d.nombre.toLowerCase().includes(k))
+                      );
+                      return (
+                        <div key={i} className="flex items-center gap-2.5 py-2 border-b border-slate-50 last:border-0">
+                          {doc ? (
+                            <span className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold shrink-0">✓</span>
+                          ) : (
+                            <span className="w-6 h-6 rounded-full bg-amber-100 text-amber-500 flex items-center justify-center text-xs font-bold shrink-0">!</span>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-xs font-medium ${doc ? 'text-slate-700' : 'text-slate-400'}`}>{item.nombre}</p>
+                            {doc && <p className="text-[9px] text-slate-400 truncate">{doc.nombre}</p>}
+                          </div>
+                          {doc ? (
+                            <a href={`/api/documentos/${doc.id}/download`} target="_blank" rel="noopener"
+                              className="text-[9px] text-emerald-600 font-bold bg-emerald-50 px-2 py-1 rounded-lg hover:bg-emerald-100 transition-colors shrink-0">
+                              📄 Ver
+                            </a>
+                          ) : (
+                            <label className="text-[9px] text-blue-600 font-bold bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded-lg cursor-pointer transition-colors shrink-0 flex items-center gap-1">
+                              📤 Subir
+                              <input type="file" className="hidden" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                                onChange={async (ev) => {
+                                  const file = ev.target.files?.[0];
+                                  if (!file) return;
+                                  const fd = new FormData();
+                                  fd.append('archivo', file);
+                                  fd.append('obraId', obra.id);
+                                  fd.append('tipo', item.tipo);
+                                  fd.append('descripcion', item.nombre);
+                                  try {
+                                    const res = await fetch('/api/documentos', { method: 'POST', body: fd });
+                                    const data = await res.json();
+                                    if (data.ok) fetchObra();
+                                    else alert(data.error || 'Error al subir');
+                                  } catch { alert('Error de conexión'); }
+                                  ev.target.value = '';
+                                }} />
+                            </label>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="bg-slate-50 rounded-lg border border-slate-200 p-3 mb-3">
+                    <p className="text-[10px] text-slate-400 font-semibold">Nº Expediente</p>
+                    <p className="text-sm font-bold text-slate-700">{(obra as any).expedienteLegal || '—'}</p>
+                  </div>
+                  {['LEGALIZACION'].includes(obra.estado) && (
+                    <button className="w-full h-10 bg-white border-2 border-slate-200 hover:border-blue-300 text-sm font-bold text-slate-700 rounded-xl">Presentar a Industria</button>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )}
-
-        {tab === 'documentos' && (
-          <div className="bg-white border border-auro-border rounded-xl p-4">
-            <h3 className="text-xs font-bold text-auro-navy/60 uppercase mb-2">Documentos</h3>
-            {obra.documentos.length === 0 ? (
-              <p className="text-sm text-auro-navy/40">Sin documentos</p>
-            ) : (
-              <div className="space-y-2">
-                {obra.documentos.map(d => (
-                  <div key={d.id} className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-2">
-                      <span>📄</span>
-                      <span>{d.nombre}</span>
-                      <span className="px-1.5 py-0.5 bg-auro-surface-2 text-auro-navy/40 text-[10px] rounded">{d.tipo}</span>
-                    </div>
-                    <span className="text-xs text-auro-navy/40">{new Date(d.createdAt).toLocaleDateString('es-ES')}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {tab === 'timeline' && (
-          <div className="bg-white border border-auro-border rounded-xl p-4">
-            <h3 className="text-xs font-bold text-auro-navy/60 uppercase mb-2">Actividad reciente</h3>
-            <div className="space-y-3">
-              {obra.actividades.map((a, i) => {
-                let detalle: any = {};
-                try { detalle = a.detalle ? JSON.parse(a.detalle) : {}; } catch {}
-                const isOverride = a.accion === 'OVERRIDE_ESTADO';
-
-                return (
-                  <div key={i} className={`flex gap-3 text-sm ${isOverride ? 'bg-estado-amber/5 -mx-2 px-2 py-1 rounded-lg' : ''}`}>
-                    <div className="text-xs text-auro-navy/30 w-16 shrink-0 pt-0.5">
-                      {new Date(a.createdAt).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })}
-                    </div>
-                    <div className="flex-1">
-                      <span className="font-medium text-auro-navy/80">{a.usuario.nombre}</span>
-                      <span className="text-auro-navy/40 ml-1">
-                        {a.accion === 'ESTADO_CAMBIADO' && detalle.estadoAnterior
-                          ? `cambió estado: ${ESTADO_CONFIG[detalle.estadoAnterior]?.label || detalle.estadoAnterior} → ${ESTADO_CONFIG[detalle.nuevoEstado]?.label || detalle.nuevoEstado}`
-                          : a.accion === 'OVERRIDE_ESTADO'
-                            ? `⚠️ Override: ${detalle.estadoAnterior} → ${detalle.nuevoEstado}. Motivo: ${detalle.motivoOverride || '—'}`
-                            : a.accion.toLowerCase().replace(/_/g, ' ')
-                        }
-                      </span>
-                      {detalle.nota && <p className="text-xs text-auro-navy/30 mt-0.5">"{detalle.nota}"</p>}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {tab === 'incidencias' && (
-          <div className="bg-white border border-auro-border rounded-xl p-4">
-            <h3 className="text-xs font-bold text-auro-navy/60 uppercase mb-2">Incidencias</h3>
-            {obra.incidencias.length === 0 ? (
-              <p className="text-sm text-auro-navy/40">Sin incidencias</p>
-            ) : (
-              <div className="space-y-2">
-                {obra.incidencias.map(inc => (
-                  <div key={inc.id} className="flex items-center justify-between text-sm border border-auro-border rounded-lg p-2">
-                    <div className="flex items-center gap-2">
-                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                        inc.gravedad === 'CRITICA' ? 'bg-estado-red/10 text-estado-red' :
-                        inc.gravedad === 'ALTA' ? 'bg-estado-amber/10 text-estado-amber' :
-                        'bg-auro-surface-2 text-auro-navy/60'
-                      }`}>{inc.gravedad}</span>
-                      <span>{inc.descripcion}</span>
-                    </div>
-                    <span className={`text-xs font-medium ${
-                      inc.estado === 'ABIERTA' ? 'text-estado-red' :
-                      inc.estado === 'EN_PROCESO' ? 'text-estado-amber' :
-                      'text-estado-green'
-                    }`}>{inc.estado}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {tab === 'validacion' && (
+        {/* ════ VALIDACIÓN ════ */}
+        {activeSection === 'validacion' && (
           <div className="space-y-4">
-            {obra.checklistValidaciones && obra.checklistValidaciones.length > 0 ? (
+            {checklist ? (
               <ChecklistReview
-                checklist={obra.checklistValidaciones[0]}
-                obraId={obra.id}
-                canReview={canReview && obra.estado === 'REVISION_COORDINADOR'}
+                checklist={checklist}
+                obraId={obraId}
+                canReview={canReview}
                 onReviewComplete={() => fetchObra()}
               />
             ) : (
-              <div className="bg-white border border-auro-border rounded-xl p-4">
-                <p className="text-sm text-auro-navy/40">No hay checklist de validación para esta obra.</p>
+              <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center">
+                <div className="text-3xl mb-2">📋</div>
+                <p className="text-sm text-slate-400">Sin checklist de validación</p>
+                <p className="text-xs text-slate-300 mt-1">Se creará cuando el instalador complete la jornada</p>
               </div>
             )}
           </div>
         )}
       </div>
 
-      {/* Override Modal */}
+      {/* Override modal */}
+      {/* Add cobro modal */}
+      {showAddCobro && obra && (
+        <AddCobroModal obraId={obra.id} obraCodigo={obra.codigo}
+          onSave={() => { fetchObra(); onUpdate(); }}
+          onClose={() => setShowAddCobro(false)} />
+      )}
+
+      {/* Edit modal */}
+      {showEditModal && obra && (
+        <EditObraModal obra={obra} onSave={async (campos) => {
+          const res = await fetch(`/api/obras/${obraId}`, {
+            method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' },
+            body: JSON.stringify(campos),
+          });
+          const data = await res.json();
+          if (data.ok) { setShowEditModal(false); fetchObra(); onUpdate(); }
+        }} onClose={() => setShowEditModal(false)} />
+      )}
+
       {showOverride && estadoTarget && evaluation && (
         <OverrideModal
-          gates={evaluation.gates.filter(g => !g.passed)}
-          estadoTarget={estadoTarget}
-          estadoLabel={ESTADO_CONFIG[estadoTarget]?.label || estadoTarget}
-          loading={cambiandoEstado}
+          open={showOverride}
+          from={obra.estado}
+          to={estadoTarget}
+          gatesFallidos={evaluation.gates.filter(g => !g.passed) as any}
           onConfirm={(motivo) => {
             setNotaCambio(motivo);
             ejecutarCambio(true);
           }}
-          onCancel={() => {
-            setShowOverride(false);
-          }}
+          onCancel={() => setShowOverride(false)}
+          loading={cambiandoEstado}
         />
       )}
     </div>

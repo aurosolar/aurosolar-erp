@@ -58,8 +58,7 @@ export default function BrandingPage() {
     setMensaje('');
     try {
       const res = await fetch('/api/config-sistema', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' },
         body: JSON.stringify({ branding: config }),
       });
       const d = await res.json();

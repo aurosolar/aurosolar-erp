@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { withAuth, apiOk } from '@/lib/api';
 import { prisma } from '@/lib/prisma';
 import logger from '@/lib/logger';
+import { registrarEvento } from '@/services/auditoria-hmac.service';
 
 export const dynamic = 'force-dynamic';
 
@@ -59,6 +60,16 @@ export const POST = withAuth('incidencias:crear', async (req, { usuario }) => {
         descripcion: input.descripcion,
       }),
     },
+  });
+
+  // Registrar en cadena HMAC
+  await registrarEvento({
+    obraId: input.obraId,
+    usuarioId: usuario.id,
+    accion: 'INCIDENCIA_CREADA',
+    entidad: 'incidencia',
+    entidadId: incidencia.id,
+    detalle: { gravedad: input.gravedad, categoria: input.categoria, descripcion: input.descripcion },
   });
 
   logger.info('incidencia_creada', {

@@ -1,5 +1,5 @@
 // public/sw.js — Service Worker for Auro Solar ERP
-const CACHE_NAME = 'aurosolar-v1';
+const CACHE_NAME = 'aurosolar-v4';
 const STATIC_ASSETS = [
   '/',
   '/login',

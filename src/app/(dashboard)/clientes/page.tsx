@@ -31,7 +31,6 @@ const ESTADOS_COLOR: Record<string, string> = {
   PREPARANDO: 'bg-yellow-50 text-yellow-700',
   PROGRAMADA: 'bg-purple-50 text-purple-600',
   INSTALANDO: 'bg-orange-50 text-orange-600',
-  TERMINADA: 'bg-green-50 text-green-600',
   LEGALIZACION: 'bg-cyan-50 text-cyan-700',
   FINALIZADA: 'bg-emerald-50 text-emerald-700',
   VALIDACION_OPERATIVA: 'bg-purple-50 text-purple-600',
@@ -302,7 +301,7 @@ function FormModal({ cliente, onClose, onGuardado }: {
     const url = cliente ? `/api/clientes/${cliente.id}` : '/api/clientes';
     const method = cliente ? 'PATCH' : 'POST';
     const res = await fetch(url, {
-      method, headers: { 'Content-Type': 'application/json' },
+      method, headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' },
       body: JSON.stringify(form),
     });
     const data = await res.json();
