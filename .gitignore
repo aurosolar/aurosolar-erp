@@ -41,3 +41,7 @@ logs/
 
 # Scripts de deploy archivados
 scripts/archive/
+
+# Ficheros temporales y backups
+*.bak
+tsconfig.tsbuildinfo
