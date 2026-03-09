@@ -30,8 +30,7 @@ export default function ExportarPage() {
     if (!anonClienteId || !confirmacion) return;
     setProcesando(true);
     const res = await fetch('/api/export/gdpr', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' },
       body: JSON.stringify({ clienteId: anonClienteId, confirmacion: true }),
     });
     const data = await res.json();

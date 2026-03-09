@@ -105,18 +105,18 @@ export default function ContactoDetallePage() {
     if (fTrato.potenciaEstimada) body.potenciaEstimada = parseFloat(fTrato.potenciaEstimada);
     if (fTrato.importe) body.importe = Math.round(parseFloat(fTrato.importe) * 100);
     if (fTrato.notas) body.notas = fTrato.notas;
-    await fetch('/api/tratos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    await fetch('/api/tratos', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' }, body: JSON.stringify(body) });
     setShowTrato(false); setFTrato({ titulo: '', tipo: '', potenciaEstimada: '', importe: '', notas: '' }); cargar();
   }
 
   async function avanzarTrato(tratoId: string, estado: string) {
     if (estado === 'PERDIDO') { setShowPerdido(tratoId); return; }
-    await fetch(`/api/tratos/${tratoId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estado }) });
+    await fetch(`/api/tratos/${tratoId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' }, body: JSON.stringify({ estado }) });
     cargar();
   }
   async function confirmarPerdido() {
     if (!showPerdido) return;
-    await fetch(`/api/tratos/${showPerdido}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estado: 'PERDIDO', motivoPerdido }) });
+    await fetch(`/api/tratos/${showPerdido}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' }, body: JSON.stringify({ estado: 'PERDIDO', motivoPerdido }) });
     setShowPerdido(null); setMotivoPerdido(''); cargar();
   }
   async function convertirTrato(tratoId: string) {
@@ -128,21 +128,21 @@ export default function ContactoDetallePage() {
   async function crearTarea() {
     const body: any = { contactoId: id, ...fTarea, asignadoId: 'self' };
     if (body.fechaVencimiento) body.fechaVencimiento = new Date(body.fechaVencimiento).toISOString();
-    await fetch('/api/tareas-crm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    await fetch('/api/tareas-crm', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' }, body: JSON.stringify(body) });
     setShowTarea(false); setFTarea({ tipo: 'LLAMADA', titulo: '', descripcion: '', fechaVencimiento: '', prioridad: 'MEDIA' }); cargar();
   }
   async function completarTarea(tareaId: string) {
-    await fetch(`/api/tareas-crm/${tareaId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estado: 'COMPLETADA' }) });
+    await fetch(`/api/tareas-crm/${tareaId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' }, body: JSON.stringify({ estado: 'COMPLETADA' }) });
     cargar();
   }
 
   async function guardarNota() {
     if (!nuevaNota.trim()) return;
-    await fetch(`/api/contactos/${id}/notas`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contenido: nuevaNota }) });
+    await fetch(`/api/contactos/${id}/notas`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' }, body: JSON.stringify({ contenido: nuevaNota }) });
     setNuevaNota(''); cargar();
   }
   async function fijarNota(notaId: string, fijada: boolean) {
-    await fetch(`/api/notas-crm/${notaId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fijada }) });
+    await fetch(`/api/notas-crm/${notaId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' }, body: JSON.stringify({ fijada }) });
     cargar();
   }
   async function eliminarNota(notaId: string) {
@@ -158,7 +158,7 @@ export default function ContactoDetallePage() {
   }
 
   async function guardarEdicion() {
-    await fetch(`/api/contactos/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fEdit) });
+    await fetch(`/api/contactos/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' }, body: JSON.stringify(fEdit) });
     setEditInfo(false); cargar();
   }
 

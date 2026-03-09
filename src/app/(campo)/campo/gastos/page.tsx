@@ -1,16 +1,16 @@
 // src/app/(campo)/campo/gastos/page.tsx
 'use client';
-
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import PhotoUploader from '@/components/campo/PhotoUploader';
 
-const TIPOS_GASTO = [
-  { value: 'MATERIAL_EXTRA', icon: '🔩', label: 'Material extra' },
-  { value: 'COMBUSTIBLE', icon: '⛽', label: 'Combustible' },
-  { value: 'DIETA', icon: '🍽️', label: 'Dieta' },
-  { value: 'PARKING_PEAJE', icon: '🅿️', label: 'Parking/Peaje' },
-  { value: 'HERRAMIENTA', icon: '🔧', label: 'Herramienta' },
-  { value: 'OTRO', icon: '📦', label: 'Otro' },
+const TIPOS = [
+  { value: 'MATERIAL_EXTRA', label: '📦 Material extra' },
+  { value: 'COMBUSTIBLE', label: '⛽ Combustible' },
+  { value: 'DIETA', label: '🍽️ Dieta' },
+  { value: 'PARKING_PEAJE', label: '🅿️ Parking/Peaje' },
+  { value: 'HERRAMIENTA', label: '🔧 Herramienta' },
+  { value: 'OTRO', label: '📎 Otro' },
 ];
 
 export default function GastosPage() {
@@ -19,142 +19,90 @@ export default function GastosPage() {
   const preObraId = searchParams.get('obraId') || '';
   const [obras, setObras] = useState<any[]>([]);
   const [obraId, setObraId] = useState(preObraId);
-  const [tipo, setTipo] = useState('');
+  const [tipo, setTipo] = useState('MATERIAL_EXTRA');
   const [importe, setImporte] = useState('');
   const [descripcion, setDescripcion] = useState('');
-  const [fotoPreview, setFotoPreview] = useState('');
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+  const [gastoId, setGastoId] = useState('');
+  const [fotoCount, setFotoCount] = useState(0);
 
   useEffect(() => {
-    fetch('/api/campo/obras?activas=false').then(r => r.json()).then(d => {
-      if (d.ok) setObras(d.data.filter((o: any) => !['COMPLETADA','CANCELADA'].includes(o.estado)));
-    });
+    fetch('/api/campo/obras?activas=false').then(r => r.json()).then(d => { if (d.ok) setObras(d.data); });
   }, []);
 
-  function handleFoto(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (file) setFotoPreview(URL.createObjectURL(file));
-  }
-
   async function handleSubmit() {
-    if (!obraId || !tipo || !importe) return;
+    if (!obraId || !importe || !fotoCount) return;
     setLoading(true);
     try {
+      const cents = Math.round(parseFloat(importe) * 100);
       const res = await fetch('/api/campo/gastos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          obraId,
-          tipo,
-          importe: Math.round(parseFloat(importe) * 100), // Céntimos
-          descripcion: descripcion || undefined,
-        }),
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' },
+        body: JSON.stringify({ obraId, tipo, importe: cents, descripcion: descripcion || undefined }),
       });
       const data = await res.json();
-      if (data.ok) setDone(true);
-      else alert(data.error);
+      if (data.ok) { setGastoId(data.data.id); setDone(true); }
+      else alert(data.error || 'Error');
     } catch { alert('Error de conexión'); }
     finally { setLoading(false); }
   }
 
-  if (done) {
-    return (
-      <div className="text-center py-12">
-        <div className="text-6xl mb-4">💾</div>
-        <h2 className="text-xl font-extrabold mb-2">Gasto registrado</h2>
-        <p className="text-white/40 text-sm mb-6">{importe}€ · {TIPOS_GASTO.find(t => t.value === tipo)?.label}</p>
-        <div className="flex gap-3 justify-center">
-          <button onClick={() => { setDone(false); setImporte(''); setDescripcion(''); setTipo(''); setFotoPreview(''); }} className="h-12 px-6 bg-white/[0.08] text-white font-bold rounded-[14px] text-sm">
-            + Otro gasto
-          </button>
-          <button onClick={() => router.push('/campo')} className="h-12 px-6 bg-[#F5820A] text-white font-bold rounded-[14px] text-sm">
-            Volver
-          </button>
-        </div>
-      </div>
-    );
-  }
+  if (done) return (
+    <div className="text-center py-12">
+      <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">???</div>
+      <h2 className="text-xl font-extrabold text-slate-800 mb-2">Gasto registrado</h2>
+      <p className="text-slate-400 text-sm mb-6">{importe}??? ?? {TIPOS.find(t => t.value === tipo)?.label}</p>
+      <button onClick={() => router.push('/campo')} className="h-11 px-8 bg-emerald-600 text-white font-bold rounded-xl text-sm active:scale-95">Volver</button>
+    </div>
+  );
 
   return (
     <div>
-      <h2 className="text-lg font-extrabold mb-1">🧾 Registro de gasto</h2>
-      <p className="text-sm text-white/40 mb-5">Registra un gasto asociado a una obra</p>
+      <h2 className="text-lg font-extrabold text-slate-800 mb-1">🧾 Registrar gasto</h2>
+      <p className="text-sm text-slate-400 mb-5">Añade un gasto de obra</p>
 
-      {/* Obra */}
-      <div className="mb-4">
-        <label className="block text-[10px] font-bold text-white/30 uppercase tracking-wider mb-1.5">Obra</label>
-        <select value={obraId} onChange={(e) => setObraId(e.target.value)} className="w-full h-12 px-4 bg-white/[0.06] border border-white/[0.08] rounded-[14px] text-white text-sm font-medium appearance-none focus:outline-none focus:border-[#F5820A]/40">
-          <option value="" className="bg-[#1A2E4A]">— Elige obra —</option>
-          {obras.map((o: any) => <option key={o.id} value={o.id} className="bg-[#1A2E4A]">{o.codigo} · {o.cliente.nombre}</option>)}
-        </select>
-      </div>
-
-      {/* Tipo de gasto */}
-      <div className="mb-4">
-        <label className="block text-[10px] font-bold text-white/30 uppercase tracking-wider mb-1.5">Tipo de gasto</label>
-        <div className="grid grid-cols-3 gap-2">
-          {TIPOS_GASTO.map((t) => (
-            <button
-              key={t.value}
-              onClick={() => setTipo(t.value)}
-              className={`py-3 rounded-[14px] border-2 flex flex-col items-center gap-1 transition-all active:scale-95 text-center
-                ${tipo === t.value ? 'border-[#F5820A] bg-[#F5820A]/10' : 'border-white/[0.08] bg-white/[0.03]'}`}
-            >
-              <span className="text-xl">{t.icon}</span>
-              <span className="text-[10px] font-bold leading-tight">{t.label}</span>
-            </button>
-          ))}
+      <div className="space-y-4">
+        <div>
+          <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Obra</label>
+          <select value={obraId} onChange={e => setObraId(e.target.value)}
+            className="w-full h-11 px-4 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 appearance-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400">
+            <option value="">Seleccionar obra</option>
+            {obras.map((o: any) => <option key={o.id} value={o.id}>{o.codigo} ?? {o.cliente.nombre}</option>)}
+          </select>
         </div>
-      </div>
 
-      {/* Importe */}
-      <div className="mb-4">
-        <label className="block text-[10px] font-bold text-white/30 uppercase tracking-wider mb-1.5">Importe</label>
-        <div className="relative">
-          <input
-            type="number"
-            step="0.01"
-            value={importe}
-            onChange={(e) => setImporte(e.target.value)}
-            placeholder="0,00"
-            className="w-full h-16 px-4 pr-10 bg-white/[0.06] border border-white/[0.08] rounded-[14px] text-white text-2xl font-extrabold text-center placeholder-white/15 focus:outline-none focus:border-[#F5820A]/40"
-          />
-          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xl text-white/25 font-bold">€</span>
-        </div>
-      </div>
-
-      {/* Descripción */}
-      <div className="mb-4">
-        <label className="block text-[10px] font-bold text-white/30 uppercase tracking-wider mb-1.5">Descripción</label>
-        <input value={descripcion} onChange={(e) => setDescripcion(e.target.value)} placeholder="Ej: 2 conectores MC4 extra" className="w-full h-12 px-4 bg-white/[0.06] border border-white/[0.08] rounded-[14px] text-white text-sm placeholder-white/20 focus:outline-none focus:border-[#F5820A]/40" />
-      </div>
-
-      {/* Foto ticket */}
-      <div className="mb-6">
-        <label className="block text-[10px] font-bold text-white/30 uppercase tracking-wider mb-1.5">📸 Foto del ticket</label>
-        {fotoPreview ? (
-          <div className="relative w-full h-32 rounded-[14px] overflow-hidden">
-            <img src={fotoPreview} alt="Ticket" className="w-full h-full object-cover" />
-            <button onClick={() => setFotoPreview('')} className="absolute top-2 right-2 w-8 h-8 bg-black/50 rounded-full flex items-center justify-center text-white text-sm">✕</button>
+        <div>
+          <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Tipo</label>
+          <div className="grid grid-cols-2 gap-2">
+            {TIPOS.map(t => (
+              <button key={t.value} onClick={() => setTipo(t.value)}
+                className={`h-10 rounded-xl text-xs font-bold transition-colors border ${tipo === t.value ? 'bg-emerald-50 border-emerald-400 text-emerald-700' : 'bg-white border-slate-200 text-slate-500'}`}>
+                {t.label}
+              </button>
+            ))}
           </div>
-        ) : (
-          <label className="flex flex-col items-center justify-center h-20 bg-white/[0.04] border-2 border-dashed border-white/[0.08] rounded-[14px] cursor-pointer">
-            <span className="text-xl">📷</span>
-            <span className="text-[10px] text-white/25 mt-0.5">Foto del ticket o factura</span>
-            <input type="file" accept="image/*" capture="environment" onChange={handleFoto} className="hidden" />
-          </label>
-        )}
-      </div>
+        </div>
 
-      {/* Submit */}
-      <button
-        onClick={handleSubmit}
-        disabled={!obraId || !tipo || !importe || loading}
-        className="w-full h-14 bg-[#F5820A] text-white font-extrabold text-base rounded-[14px] flex items-center justify-center gap-2 shadow-lg shadow-[#F5820A]/30 active:scale-[0.98] transition-transform disabled:opacity-40"
-      >
-        {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <>💾 Guardar gasto</>}
-      </button>
+        <div>
+          <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Importe (???)</label>
+          <input type="number" step="0.01" value={importe} onChange={e => setImporte(e.target.value)}
+            placeholder="0.00" className="w-full h-11 px-4 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 text-center text-lg font-bold focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400"/>
+        </div>
+
+        <div>
+          <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Descripción <span className="text-slate-300 font-normal normal-case">(opcional)</span></label>
+          <input type="text" value={descripcion} onChange={e => setDescripcion(e.target.value)}
+            placeholder="Detalle del gasto" className="w-full h-11 px-4 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 placeholder-slate-300 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400"/>
+        </div>
+
+        <PhotoUploader entityType="GASTO" entityId={gastoId || 'pending'} obraId={obraId} tipo="TICKET_GASTO"
+          maxFotos={3} required label="Foto del ticket" onCountChange={setFotoCount} />
+
+        <button onClick={handleSubmit} disabled={!obraId || !importe || !fotoCount || loading}
+          className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl shadow-md shadow-emerald-600/25 transition-all disabled:opacity-40 active:scale-[0.98]">
+          {loading ? 'Guardando...' : '🧾 Registrar gasto'}
+        </button>
+      </div>
     </div>
   );
 }

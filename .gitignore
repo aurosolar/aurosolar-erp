@@ -34,3 +34,14 @@ prisma/migrations/**/migration_lock.toml
 
 # Uploads (no subir archivos de usuario a git)
 uploads/
+
+# Logs de aplicación
+logs/
+*.log
+
+# Scripts de deploy archivados
+scripts/archive/
+
+# Ficheros temporales y backups
+*.bak
+tsconfig.tsbuildinfo

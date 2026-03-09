@@ -15,7 +15,7 @@ interface GateBlockerProps {
   onAction?: (action: SuggestedAction) => void;
 }
 
-export default function GateBlocker({
+export function GateBlocker({
   result,
   from,
   to,

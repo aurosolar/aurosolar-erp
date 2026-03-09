@@ -75,6 +75,7 @@ export async function listarObras(filtros: FiltrosObra = {}) {
           include: { instalador: { select: { nombre: true, apellidos: true } } },
         },
         pagos: { select: { importe: true } },
+        _count: { select: { incidencias: true } },
       },
       orderBy: { createdAt: 'desc' },
       skip: (page - 1) * limit,

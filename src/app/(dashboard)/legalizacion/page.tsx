@@ -47,7 +47,7 @@ export default function LegalizacionPage() {
     const sig = SIGUIENTE[item.estadoLegal];
     if (!sig) return;
     await fetch('/api/legalizacion', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' },
       body: JSON.stringify({
         obraId: item.id, estado: sig.estado,
         expediente: expediente || undefined,

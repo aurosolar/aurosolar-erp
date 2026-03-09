@@ -23,7 +23,7 @@ export const GET = withAuth('obras:ver', async (req) => {
 export const POST = withAuth('campo:validar', async (req, { usuario }) => {
   try {
     const body = await req.json();
-    const result = await valService.guardarValidacion(body, usuario.id);
+    const result = await valService.guardarValidacion({ ...body, usuarioId: usuario.id });
     return apiOk(result, 201);
   } catch (e) {
     return apiError(e instanceof Error ? e.message : 'Error', 422);

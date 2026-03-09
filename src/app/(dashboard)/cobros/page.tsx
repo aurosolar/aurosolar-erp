@@ -245,8 +245,7 @@ function RegistrarCobroModal({ obra, onClose, onRegistrado }: {
 
     try {
       const res = await fetch('/api/cobros', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' },
         body: JSON.stringify({
           obraId: obra.id,
           importe: Math.round(parseFloat(importeEuros) * 100),

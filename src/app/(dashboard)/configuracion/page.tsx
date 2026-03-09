@@ -53,7 +53,7 @@ export default function ConfiguracionPage() {
 
   async function toggleActivo(item: CatItem) {
     await fetch(`/api/configuracion/${item.id}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' },
       body: JSON.stringify({ activo: !item.activo }),
     });
     cargar();
@@ -198,7 +198,7 @@ function CatModal({ item, onClose, onGuardado }: { item?: CatItem; onClose: () =
     const body = esEditar
       ? { nombre: form.nombre, orden: parseInt(form.orden) || 0 }
       : { ...form, orden: parseInt(form.orden) || 0 };
-    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' }, body: JSON.stringify(body) });
     const data = await res.json();
     if (data.ok) onGuardado();
     else setError(data.error || 'Error');

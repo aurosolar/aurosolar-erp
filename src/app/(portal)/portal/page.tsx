@@ -41,7 +41,6 @@ export default function PortalHome() {
     PREPARANDO: { label: 'Preparando', icon: '📋' },
     PROGRAMADA: { label: 'Programada', icon: '📅' },
     INSTALANDO: { label: 'En instalación', icon: '⚡' },
-    TERMINADA: { label: 'Instalación completada', icon: '✅' },
     LEGALIZACION: { label: 'En legalización', icon: '📋' },
     LEGALIZADA: { label: 'Legalizada', icon: '🏆' },
     COMPLETADA: { label: 'Completada', icon: '🎉' },

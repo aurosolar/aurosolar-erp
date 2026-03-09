@@ -1,141 +1,52 @@
 // src/app/(campo)/campo/perfil/page.tsx
 'use client';
-
-import { useRouter } from 'next/navigation';
-import { useSession } from '@/lib/useSession';
 import { useState, useEffect } from 'react';
-
-interface EstadisticasInstalador {
-  obrasAsignadas: number;
-  checkinsHoy: number;
-  incidenciasAbiertas: number;
-}
+import { useRouter } from 'next/navigation';
 
 export default function PerfilPage() {
   const router = useRouter();
-  const { usuario, loading } = useSession();
-  const [stats, setStats] = useState<EstadisticasInstalador | null>(null);
-  const [cerrando, setCerrando] = useState(false);
+  const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
-    if (usuario) {
-      fetch(`/api/obras?instaladorId=${usuario.id}&limit=100`)
-        .then(r => r.json())
-        .then(obrasRes => {
-          setStats({
-            obrasAsignadas: obrasRes.ok ? (obrasRes.data?.obras?.length ?? 0) : 0,
-            checkinsHoy: 0,
-            incidenciasAbiertas: 0,
-          });
-        })
-        .catch(() => setStats(null));
-    }
-  }, [usuario]);
+    fetch('/api/auth/me').then(r => r.json()).then(d => {
+      if (d.ok) setUser(d.data);
+    });
+  }, []);
 
   async function handleLogout() {
-    setCerrando(true);
-    try {
-      await fetch('/api/auth/logout', { method: 'POST' });
-      router.push('/login');
-    } catch {
-      setCerrando(false);
-    }
+    await fetch('/api/auth/logout', { method: 'POST' });
+    router.push('/login');
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="w-8 h-8 border-2 border-[#F5820A]/30 border-t-[#F5820A] rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  const iniciales = usuario
-    ? `${usuario.nombre.charAt(0)}${usuario.apellidos.charAt(0)}`.toUpperCase()
-    : '??';
-
-  const rolLabel: Record<string, string> = {
-    INSTALADOR: 'Instalador',
-    JEFE_INSTALACIONES: 'Jefe de Instalaciones',
-    ADMIN: 'Administrador',
-    DIRECCION: 'Dirección',
-    COMERCIAL: 'Comercial',
-    ADMINISTRACION: 'Administración',
-    CLIENTE: 'Cliente',
-  };
+  if (!user) return (
+    <div className="flex justify-center py-12"><div className="w-8 h-8 border-2 border-emerald-200 border-t-emerald-600 rounded-full animate-spin" /></div>
+  );
 
   return (
-    <div className="space-y-4">
-      <h2 className="text-lg font-extrabold">👤 Mi perfil</h2>
+    <div>
+      <h2 className="text-lg font-extrabold text-slate-800 mb-5">👤 Mi perfil</h2>
 
-      {/* Tarjeta de usuario */}
-      <div className="bg-white/[0.04] border border-white/[0.06] rounded-[14px] p-5">
+      <div className="bg-white border border-slate-200 rounded-xl p-5 mb-4">
         <div className="flex items-center gap-4 mb-4">
-          <div className="w-16 h-16 rounded-2xl bg-[#F5820A]/15 border border-[#F5820A]/20 flex items-center justify-center text-xl font-extrabold text-[#F5820A]">
-            {iniciales}
+          <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center text-xl font-bold text-emerald-700">
+            {user.nombre?.[0]}{user.apellidos?.[0]}
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-[17px] font-extrabold leading-tight truncate">
-              {usuario?.nombre} {usuario?.apellidos}
-            </div>
-            <div className="text-sm text-white/40 mt-0.5 truncate">
-              {usuario?.email}
-            </div>
-            <div className="mt-1.5">
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#2563EB]/10 text-[#60A5FA] border border-[#2563EB]/20">
-                {rolLabel[usuario?.rol ?? ''] ?? usuario?.rol}
-              </span>
-            </div>
+          <div>
+            <p className="text-base font-extrabold text-slate-800">{user.nombre} {user.apellidos}</p>
+            <p className="text-xs text-slate-400">{user.email}</p>
+            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full mt-1 inline-block">{user.rol}</span>
           </div>
         </div>
-
-        {stats && (
-          <div className="grid grid-cols-3 gap-2 pt-4 border-t border-white/[0.06]">
-            <div className="text-center">
-              <div className="text-xl font-extrabold text-[#F5820A]">{stats.obrasAsignadas}</div>
-              <div className="text-[10px] text-white/40 font-medium mt-0.5">Obras</div>
-            </div>
-            <div className="text-center">
-              <div className="text-xl font-extrabold text-[#16A34A]">{stats.checkinsHoy}</div>
-              <div className="text-[10px] text-white/40 font-medium mt-0.5">Check-ins hoy</div>
-            </div>
-            <div className="text-center">
-              <div className="text-xl font-extrabold text-[#D97706]">{stats.incidenciasAbiertas}</div>
-              <div className="text-[10px] text-white/40 font-medium mt-0.5">Incidencias</div>
-            </div>
+        {user.telefono && (
+          <div className="flex items-center gap-2 text-sm text-slate-500 border-t border-slate-100 pt-3">
+            <span>📞</span> {user.telefono}
           </div>
         )}
       </div>
 
-      {/* Info del sistema */}
-      <div className="bg-white/[0.04] border border-white/[0.06] rounded-[14px] p-4">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="text-lg">ℹ️</div>
-          <div className="text-sm font-bold">Información del sistema</div>
-        </div>
-        <div className="space-y-2 text-sm text-white/50">
-          <div className="flex justify-between">
-            <span>Versión</span>
-            <span className="text-white/70 font-medium">v0.2.0</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Modo</span>
-            <span className="text-white/70 font-medium">Campo (instalador)</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Conectividad</span>
-            <span className="text-[#16A34A] font-medium">● Online</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Cerrar sesión */}
-      <button
-        onClick={handleLogout}
-        disabled={cerrando}
-        className="w-full h-12 bg-[#DC2626]/15 border border-[#DC2626]/20 text-[#F87171] font-bold rounded-[14px] text-sm active:scale-[0.98] transition-transform disabled:opacity-50"
-      >
-        {cerrando ? 'Cerrando sesión...' : 'Cerrar sesión'}
+      <button onClick={handleLogout}
+        className="w-full h-11 bg-red-50 border border-red-200 text-red-600 font-bold text-sm rounded-xl hover:bg-red-100 transition-colors">
+        🚪 Cerrar sesión
       </button>
     </div>
   );

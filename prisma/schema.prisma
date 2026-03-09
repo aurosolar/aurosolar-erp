@@ -26,6 +26,38 @@ enum Rol {
   CLIENTE
 }
 
+model Empresa {
+  id          String    @id @default(uuid())
+  nombre      String
+  cif         String?   @unique
+  email       String?
+  telefono    String?
+  direccion   String?
+  logoUrl     String?   @map("logo_url")
+  activa      Boolean   @default(true)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  // Relaciones
+  usuarios    Usuario[]
+  clientes    Cliente[]
+  leads       Lead[]
+  contactos   Contacto[]
+  obras       Obra[]
+  documentos  Documento[]
+  incidencias Incidencia[]
+  notificaciones Notificacion[]
+  actividades Actividad[]
+  catalogos   Catalogo[]
+  configSistema ConfigSistema[]
+  tratos      Trato[]
+  tareasCrm   TareaCrm[]
+
+  @@map("empresas")
+}
+
+
+
 model Usuario {
   id            String    @id @default(uuid())
   email         String    @unique
@@ -39,6 +71,8 @@ model Usuario {
   zona          String?   // Para comerciales
   objetivoMensual Int?    @map("objetivo_mensual") // Céntimos, para comerciales
   clienteId     String?  @map("cliente_id") // Para rol CLIENTE: enlace con su ficha
+  empresaId     String?  @map("empresa_id")
+  empresa       Empresa? @relation(fields: [empresaId], references: [id])
 
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
@@ -48,6 +82,9 @@ model Usuario {
   obrasComercial     Obra[]            @relation("ObraComercial")
   obrasInstalador    ObraInstalador[]
   checkins           Checkin[]
+  shifts             WorkShift[]   @relation("shifts")
+  workSessions       WorkSession[] @relation("sessions")
+  workReports        WorkReport[]  @relation("reports")
   gastosRegistrados  Gasto[]
   validaciones       Validacion[]
   incidenciasCreadas Incidencia[]      @relation("IncidenciaCreador")
@@ -58,6 +95,8 @@ model Usuario {
   actividadesUsuario Actividad[]
   subvencionesResponsable Subvencion[] @relation("SubvencionResponsable")
   checklistCreados ChecklistValidacion[] @relation("ChecklistCreador")
+  checklistSubmitted ChecklistValidacion[] @relation("ChecklistSubmitter")
+  checklistReviewed  ChecklistValidacion[] @relation("ChecklistReviewer")
   leadsAsignados     Lead[]
   visitasComercial   Visita[]
   sesiones           Session[]
@@ -67,6 +106,7 @@ model Usuario {
   notasAutor         NotaCrm[]         @relation("NotaAutor")
   archivosSubidos    ArchivoCrm[]      @relation("ArchivoSubidoPor")
 
+  jornadasComoInstalador ObraJornadaInstalador[] @relation("JornadaInstalador")
   @@map("usuarios")
 }
 
@@ -98,6 +138,8 @@ model Cliente {
   telefono      String?
   email         String?
   notas         String?
+  empresaId     String?   @map("empresa_id")
+  empresa       Empresa?  @relation(fields: [empresaId], references: [id])
 
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
@@ -143,6 +185,9 @@ enum TipoInstalacion {
   AEROTERMIA
   BESS
   BACKUP
+  ALQUILER_CUBIERTA
+  REPARACION
+  SUSTITUCION
 }
 
 model Lead {
@@ -161,6 +206,8 @@ model Lead {
   importeEstimado   Int?         @map("importe_estimado") // Céntimos
   notas             String?
 
+  empresaId         String?      @map("empresa_id")
+  empresa           Empresa?     @relation(fields: [empresaId], references: [id])
   comercialId       String?      @map("comercial_id")
   clienteId         String?      @map("cliente_id")
   obraId            String?      @unique @map("obra_id") // Si se convirtió
@@ -208,7 +255,6 @@ enum EstadoObra {
   INSTALANDO
   VALIDACION_OPERATIVA
   REVISION_COORDINADOR
-  TERMINADA
   LEGALIZACION
   LEGALIZADA
   COMPLETADA
@@ -234,6 +280,8 @@ model Obra {
 
   // Datos técnicos
   direccionInstalacion String?       @map("direccion_instalacion")
+  latitud           Float?
+  longitud          Float?
   localidad         String?
   provincia         String?
   potenciaKwp       Float?           @map("potencia_kwp")
@@ -268,15 +316,19 @@ model Obra {
   createdAt         DateTime         @default(now()) @map("created_at")
   updatedAt         DateTime         @updatedAt @map("updated_at")
   deletedAt         DateTime?        @map("deleted_at")
+  version           Int              @default(1)
 
   // Relaciones
   cliente           Cliente          @relation(fields: [clienteId], references: [id])
   comercial         Usuario?         @relation("ObraComercial", fields: [comercialId], references: [id])
   instaladores      ObraInstalador[]
+  jornadas         ObraJornada[]
   planPagos         PlanPago[]
   pagos             Pago[]
   documentos        Documento[]
   checkins          Checkin[]
+  workSessions      WorkSession[]
+  workReports       WorkReport[]
   gastos            Gasto[]
   validaciones      Validacion[]
   incidencias       Incidencia[]
@@ -288,6 +340,9 @@ model Obra {
   subvenciones      Subvencion[]
   checklistValidaciones ChecklistValidacion[]
   trato             Trato?           @relation("TratoObra")
+
+  empresaId         String?          @map("empresa_id")
+  empresa           Empresa?         @relation(fields: [empresaId], references: [id])
 
   @@map("obras")
 }
@@ -328,6 +383,7 @@ model PlanPago {
   orden         Int       @default(0)
   fechaPrevista DateTime? @map("fecha_prevista")
   pagado        Boolean   @default(false)
+  requiereParaEstado String?  @map("requiere_para_estado")
 
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
@@ -384,6 +440,8 @@ enum TipoDocumento {
   FACTURA
   BOLETIN
   CERTIFICADO
+  REP_VOLUNTARIA
+  CERT_INSTALACION
   MEMORIA_TECNICA
   FOTO_INSTALACION
   FOTO_INVERSOR
@@ -398,7 +456,7 @@ enum TipoDocumento {
 
 model Documento {
   id            String        @id @default(uuid())
-  obraId        String        @map("obra_id")
+  obraId        String?       @map("obra_id")
   tipo          TipoDocumento
   nombre        String
   descripcion   String?
@@ -407,15 +465,24 @@ model Documento {
   tamanoBytes   Int?          @map("tamano_bytes")
   estado        String        @default("ACTIVO") // ACTIVO, APROBADO, RECHAZADO
   visible       Boolean       @default(false) // Visible en portal cliente
-  url           String?       // URL pública o enlace de descarga
+  url           String?       
 
+  thumbnailUrl  String?       @map("thumbnail_url")
+  entityType    String?       @map("entity_type")
+  entityId      String?       @map("entity_id")
   subidoPorId   String        @map("subido_por_id")
 
   createdAt     DateTime      @default(now()) @map("created_at")
   deletedAt     DateTime?     @map("deleted_at")
+  deletedBy     String?       @map("deleted_by")
+  deleteReason  String?       @map("delete_reason")
 
-  obra          Obra          @relation(fields: [obraId], references: [id])
+  obra          Obra?         @relation(fields: [obraId], references: [id])
   subidoPor     Usuario       @relation(fields: [subidoPorId], references: [id])
+
+  @@index([entityType, entityId])
+  empresaId     String?   @map("empresa_id")
+  empresa       Empresa?  @relation(fields: [empresaId], references: [id])
 
   @@map("documentos")
 }
@@ -432,6 +499,7 @@ model Checkin {
   horaSalida    DateTime? @map("hora_salida")
   fotoUrl       String?   @map("foto_url")
   nota          String?
+  notaSalida    String?   @map("nota_salida")
   latitud       Float?
   longitud      Float?
 
@@ -538,6 +606,9 @@ model Incidencia {
   activo        ActivoInstalado? @relation(fields: [activoId], references: [id])
   creadoPor     Usuario?         @relation("IncidenciaCreador", fields: [creadoPorId], references: [id])
   asignadoA     Usuario?         @relation("IncidenciaAsignado", fields: [asignadoAId], references: [id])
+
+  empresaId     String?   @map("empresa_id")
+  empresa       Empresa?  @relation(fields: [empresaId], references: [id])
 
   @@map("incidencias")
 }
@@ -656,6 +727,9 @@ model Actividad {
   entidad       String   // obra, pago, incidencia, etc.
   entidadId     String?  @map("entidad_id")
   detalle       String?  // JSON con datos relevantes (antes/después)
+  seq           Int?
+  prevHash      String?          @map("prev_hash")
+  hash          String?
 
   createdAt     DateTime @default(now()) @map("created_at")
 
@@ -665,6 +739,9 @@ model Actividad {
   @@index([obraId, createdAt])
   @@index([usuarioId, createdAt])
   @@index([entidad, entidadId])
+  empresaId     String?   @map("empresa_id")
+  empresa       Empresa?  @relation(fields: [empresaId], references: [id])
+
   @@map("actividades")
 }
 
@@ -682,6 +759,9 @@ model Catalogo {
   metadata  String?  // JSON para datos extra (color, icono, etc.)
 
   @@unique([tipo, codigo])
+  empresaId     String?   @map("empresa_id")
+  empresa       Empresa?  @relation(fields: [empresaId], references: [id])
+
   @@map("catalogos")
 }
 
@@ -713,6 +793,9 @@ model Notificacion {
   usuario       Usuario                 @relation(fields: [usuarioId], references: [id])
 
   @@index([usuarioId, leida])
+  empresaId     String?   @map("empresa_id")
+  empresa       Empresa?  @relation(fields: [empresaId], references: [id])
+
   @@map("notificaciones")
 }
 
@@ -773,6 +856,13 @@ enum ResultadoValidacion {
   BORRADOR
 }
 
+enum EstadoChecklist {
+  BORRADOR
+  SUBMITIDA
+  APROBADA
+  RECHAZADA
+}
+
 model ChecklistValidacion {
   id            String              @id @default(uuid())
   obraId        String              @map("obra_id")
@@ -794,11 +884,21 @@ model ChecklistValidacion {
   fotosJson          String?        @map("fotos_json")
 
   creadoPorId   String              @map("creado_por_id")
+  // Gate Engine v2: review workflow
+  status            EstadoChecklist     @default(BORRADOR)
+  submittedAt       DateTime?           @map("submitted_at")
+  submittedById     String?             @map("submitted_by_id")
+  reviewedAt        DateTime?           @map("reviewed_at")
+  reviewedById      String?             @map("reviewed_by_id")
+  reviewDecision    String?             @map("review_decision")
+  reviewNotes       String?             @map("review_notes")
   createdAt     DateTime            @default(now()) @map("created_at")
   updatedAt     DateTime            @updatedAt @map("updated_at")
 
   obra          Obra                @relation(fields: [obraId], references: [id])
   creadoPor     Usuario             @relation("ChecklistCreador", fields: [creadoPorId], references: [id])
+  submittedBy   Usuario?            @relation("ChecklistSubmitter", fields: [submittedById], references: [id])
+  reviewedBy    Usuario?            @relation("ChecklistReviewer", fields: [reviewedById], references: [id])
   items         ChecklistItem[]
 
   @@index([obraId])
@@ -816,6 +916,7 @@ model ChecklistItem {
 
   checklist       ChecklistValidacion @relation(fields: [checklistId], references: [id], onDelete: Cascade)
 
+  @@unique([checklistId, codigo])
   @@map("checklist_items")
 }
 
@@ -829,6 +930,9 @@ model ConfigSistema {
   colorAccent   String   @default("#F58216") @map("color_accent")
 branding      Json?     @default("{}")
   updatedAt     DateTime @updatedAt @map("updated_at")
+
+  empresaId     String?   @map("empresa_id")
+  empresa       Empresa?  @relation(fields: [empresaId], references: [id])
 
   @@map("config_sistema")
 }
@@ -872,6 +976,9 @@ model Contacto {
 
   @@index([comercialId])
   @@index([estado])
+  empresaId     String?   @map("empresa_id")
+  empresaTenant Empresa?  @relation(fields: [empresaId], references: [id])
+
   @@map("contactos")
 }
 
@@ -907,6 +1014,9 @@ model Trato {
 
   @@index([contactoId])
   @@index([estado])
+  empresaId     String?   @map("empresa_id")
+  empresa       Empresa?  @relation(fields: [empresaId], references: [id])
+
   @@map("tratos")
 }
 
@@ -952,6 +1062,9 @@ model TareaCrm {
 
   @@index([asignadoId, estado])
   @@index([contactoId])
+  empresaId     String?   @map("empresa_id")
+  empresa       Empresa?  @relation(fields: [empresaId], references: [id])
+
   @@map("tareas_crm")
 }
 
@@ -988,6 +1101,131 @@ model ArchivoCrm {
   contacto        Contacto  @relation(fields: [contactoId], references: [id])
   subidoPor       Usuario   @relation("ArchivoSubidoPor", fields: [subidoPorId], references: [id])
 
+
   @@index([contactoId])
   @@map("archivos_crm")
 }
+
+// ── Planificación: Jornadas de obra ──
+model ObraJornada {
+  id            String    @id @default(uuid())
+  obraId        String    @map("obra_id")
+  fecha         DateTime  @db.Date
+  horaInicio    String    @default("08:00") @map("hora_inicio") // "HH:MM"
+  horaFin       String    @default("17:00") @map("hora_fin")    // "HH:MM"
+  notas         String?
+
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  obra          Obra      @relation(fields: [obraId], references: [id])
+  instaladores  ObraJornadaInstalador[]
+
+  @@index([obraId])
+  @@index([fecha])
+  @@map("obra_jornadas")
+}
+
+model ObraJornadaInstalador {
+  id            String       @id @default(uuid())
+  jornadaId     String       @map("jornada_id")
+  instaladorId  String       @map("instalador_id")
+
+  createdAt     DateTime     @default(now()) @map("created_at")
+
+  jornada       ObraJornada  @relation(fields: [jornadaId], references: [id], onDelete: Cascade)
+  instalador    Usuario      @relation("JornadaInstalador", fields: [instaladorId], references: [id])
+
+  @@unique([jornadaId, instaladorId])
+  @@index([instaladorId])
+  @@index([jornadaId])
+  @@map("obra_jornada_instaladores")
+}
+
+// ═══════════════════════════════════════
+// CONTROL HORARIO: Jornadas + Sesiones
+// ═══════════════════════════════════════
+model WorkShift {
+  id            String        @id @default(uuid())
+  empleadoId    String        @map("empleado_id")
+  startTime     DateTime      @map("start_time")
+  endTime       DateTime?     @map("end_time")
+  startLat      Float?        @map("start_lat")
+  startLng      Float?        @map("start_lng")
+  endLat        Float?        @map("end_lat")
+  endLng        Float?        @map("end_lng")
+  nota          String?
+  notaCierre    String?       @map("nota_cierre")
+  createdAt     DateTime      @default(now()) @map("created_at")
+
+  empleado      Usuario       @relation("shifts", fields: [empleadoId], references: [id])
+  sessions      WorkSession[]
+  events        WorkEvent[]
+
+  @@index([empleadoId, startTime])
+  @@map("work_shifts")
+}
+
+model WorkSession {
+  id            String        @id @default(uuid())
+  shiftId       String        @map("shift_id")
+  obraId        String        @map("obra_id")
+  empleadoId    String        @map("empleado_id")
+  startTime     DateTime      @map("start_time")
+  endTime       DateTime?     @map("end_time")
+  durationMin   Int?          @map("duration_min")
+  nota          String?
+  sessionTipo   String?       @map("session_tipo") // TRABAJO, ESPERA
+  cierreTipo    String?       @map("cierre_tipo") // PARTE, VALIDACION, PAUSA
+  createdAt     DateTime      @default(now()) @map("created_at")
+
+  shift         WorkShift     @relation(fields: [shiftId], references: [id])
+  obra          Obra          @relation(fields: [obraId], references: [id])
+  empleado      Usuario       @relation("sessions", fields: [empleadoId], references: [id])
+
+  @@index([shiftId])
+  @@index([obraId])
+  @@index([empleadoId, startTime])
+  @@map("work_sessions")
+}
+
+model WorkEvent {
+  id            String        @id @default(uuid())
+  shiftId       String        @map("shift_id")
+  tipo          String        // PAUSA, TRASLADO, COMPRA_MATERIAL, REUNION
+  startTime     DateTime      @map("start_time")
+  endTime       DateTime?     @map("end_time")
+  descripcion   String?
+  createdAt     DateTime      @default(now()) @map("created_at")
+
+  shift         WorkShift     @relation(fields: [shiftId], references: [id])
+
+  @@index([shiftId])
+  @@map("work_events")
+}
+
+model WorkReport {
+  id            String        @id @default(uuid())
+  sessionId     String?       @map("session_id")
+  obraId        String        @map("obra_id")
+  empleadoId    String        @map("empleado_id")
+  tipo          String        // PARTE, VALIDACION
+  estado        String        @default("BORRADOR") // BORRADOR, FIRMADO, ENVIADO
+  datos         Json?         // JSONB: checkboxes, notas, material, etc.
+  firmaNombre   String?       @map("firma_nombre")
+  firmaDni      String?       @map("firma_dni")
+  firmaEmail    String?       @map("firma_email")
+  firmaData     String?       @map("firma_data") // base64 de la firma
+  firmaFecha    DateTime?     @map("firma_fecha")
+  pdfUrl        String?       @map("pdf_url")
+  emailEnviado  Boolean       @default(false) @map("email_enviado")
+  createdAt     DateTime      @default(now()) @map("created_at")
+
+  obra          Obra          @relation(fields: [obraId], references: [id])
+  empleado      Usuario       @relation("reports", fields: [empleadoId], references: [id])
+
+  @@index([obraId])
+  @@index([empleadoId])
+  @@map("work_reports")
+}
+

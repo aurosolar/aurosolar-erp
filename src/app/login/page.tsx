@@ -1,6 +1,5 @@
 // src/app/login/page.tsx
 'use client';
-
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -15,31 +14,22 @@ export default function LoginPage() {
     e.preventDefault();
     setError('');
     setLoading(true);
-
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' },
         body: JSON.stringify({ email, password }),
       });
-
       const data = await res.json();
-
       if (!data.ok) {
         setError(data.error || 'Error al iniciar sesión');
         setLoading(false);
         return;
       }
-
-      // Redirigir según rol
       const rol = data.data.rol;
-      if (rol === 'INSTALADOR') {
-        router.push('/campo');
-      } else if (rol === 'COMERCIAL') {
-        router.push('/crm');
-      } else {
-        router.push('/dashboard');
-      }
+      if (rol === 'INSTALADOR') router.push('/campo');
+      else if (rol === 'COMERCIAL') router.push('/crm');
+      else router.push('/dashboard');
     } catch {
       setError('Error de conexión');
       setLoading(false);
@@ -47,102 +37,56 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-auro-navy relative overflow-hidden">
-      {/* Fondo decorativo */}
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-emerald-50/30 relative overflow-hidden">
+      {/* Background decoration */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-[600px] h-[600px] rounded-full bg-auro-orange/5 blur-3xl" />
-        <div className="absolute -bottom-60 -left-40 w-[500px] h-[500px] rounded-full bg-auro-orange/3 blur-3xl" />
-        {/* Patrón sutil de grid */}
-        <div
-          className="absolute inset-0 opacity-[0.03]"
-          style={{
-            backgroundImage: 'linear-gradient(rgba(255,255,255,.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.1) 1px, transparent 1px)',
-            backgroundSize: '60px 60px',
-          }}
-        />
+        <div className="absolute -top-40 -right-40 w-[500px] h-[500px] rounded-full bg-emerald-100/40 blur-3xl" />
+        <div className="absolute -bottom-60 -left-40 w-[400px] h-[400px] rounded-full bg-emerald-50/60 blur-3xl" />
       </div>
 
-      <div className="relative z-10 w-full max-w-md mx-4">
+      <div className="relative z-10 w-full max-w-sm mx-4">
         {/* Logo */}
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center gap-3 mb-4">
-            <div className="w-14 h-14 rounded-2xl bg-auro-orange flex items-center justify-center text-3xl shadow-lg shadow-auro-orange/30">
-              ☀️
-            </div>
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-emerald-600 shadow-lg shadow-emerald-600/25 mb-4">
+            <span className="text-3xl">☀️</span>
           </div>
-          <h1 className="text-white text-2xl font-extrabold tracking-tight">
-            Auro <span className="text-auro-orange">Solar</span>
+          <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">
+            Auro <span className="text-emerald-600">Solar</span>
           </h1>
-          <p className="text-white/40 text-sm mt-1 font-medium">
-            Sistema de gestión interno
-          </p>
+          <p className="text-slate-400 text-sm mt-1">Sistema de gestión interno</p>
         </div>
 
-        {/* Card de login */}
-        <div className="bg-white/[0.06] backdrop-blur-xl border border-white/10 rounded-2xl p-8 shadow-2xl">
-          <h2 className="text-white text-lg font-bold mb-1">Iniciar sesión</h2>
-          <p className="text-white/40 text-sm mb-6">Accede con tu cuenta de Auro Solar</p>
-
+        {/* Card */}
+        <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 border border-slate-100 p-6">
           <form onSubmit={handleLogin} className="space-y-4">
-            {/* Email */}
             <div>
-              <label className="block text-white/60 text-xs font-semibold mb-1.5 uppercase tracking-wider">
-                Email
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="tu@aurosolar.es"
-                required
-                className="w-full h-12 px-4 bg-white/[0.07] border border-white/10 rounded-xl text-white placeholder-white/25 text-sm font-medium focus:outline-none focus:border-auro-orange/50 focus:bg-white/[0.09] transition-all duration-200"
-              />
+              <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Email</label>
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoFocus
+                placeholder="tu@email.com"
+                className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 transition-colors" />
             </div>
-
-            {/* Password */}
             <div>
-              <label className="block text-white/60 text-xs font-semibold mb-1.5 uppercase tracking-wider">
-                Contraseña
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+              <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Contraseña</label>
+              <input type="password" value={password} onChange={e => setPassword(e.target.value)} required
                 placeholder="••••••••"
-                required
-                className="w-full h-12 px-4 bg-white/[0.07] border border-white/10 rounded-xl text-white placeholder-white/25 text-sm font-medium focus:outline-none focus:border-auro-orange/50 focus:bg-white/[0.09] transition-all duration-200"
-              />
+                className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 transition-colors" />
             </div>
-
-            {/* Error */}
             {error && (
-              <div className="bg-estado-red/10 border border-estado-red/20 rounded-xl px-4 py-3 text-estado-red text-sm font-medium flex items-center gap-2">
-                <span>⚠️</span> {error}
-              </div>
+              <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-2.5 text-xs text-red-600 font-semibold">{error}</div>
             )}
-
-            {/* Submit */}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full h-12 bg-auro-orange hover:bg-auro-orange-dark text-white font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-2 mt-6 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-auro-orange/25"
-            >
+            <button type="submit" disabled={loading}
+              className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl shadow-md shadow-emerald-600/25 transition-all disabled:opacity-50 active:scale-[0.98]">
               {loading ? (
-                <>
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span className="flex items-center justify-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   Entrando...
-                </>
-              ) : (
-                'Entrar'
-              )}
+                </span>
+              ) : 'Iniciar sesión'}
             </button>
           </form>
         </div>
 
-        {/* Footer */}
-        <p className="text-center text-white/20 text-xs mt-8 font-medium">
-          Auro Solar Energía · ERP v1.0
-        </p>
+        <p className="text-center text-[11px] text-slate-300 mt-6">© 2026 Auro Solar Energía</p>
       </div>
     </div>
   );

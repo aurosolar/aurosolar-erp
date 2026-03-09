@@ -49,8 +49,7 @@ export default function FotosPage() {
     try {
       for (const foto of fotos) {
         await fetch('/api/campo/fotos', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' },
           body: JSON.stringify({ obraId, tipo: foto.tipo, nombre: foto.file.name }),
         });
       }

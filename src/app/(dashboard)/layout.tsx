@@ -1,22 +1,21 @@
 // src/app/(dashboard)/layout.tsx
-// Layout autenticado: sidebar + topbar + contenido
-// Se aplica a todas las rutas dentro de (dashboard)
+// Layout Stitch: TopNav horizontal + contenido full-width
 import { redirect } from 'next/navigation';
 import { getSession } from '@/lib/auth';
-import { Sidebar } from '@/components/layout/Sidebar';
-import { Topbar } from '@/components/layout/Topbar';
+import { TopNav } from '@/components/layout/TopNav';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
   if (!session) redirect('/login');
+  // Instaladores e jefes de instalaciones van a su vista específica
+  if (['INSTALADOR', 'JEFE_INSTALACIONES'].includes(session.rol)) {
+    redirect('/campo');
+  }
 
   return (
-    <div className="min-h-screen bg-auro-bg flex">
-      <Sidebar usuario={session} />
-      <div className="flex-1 lg:ml-[250px] flex flex-col min-h-screen">
-        <Topbar usuario={session} />
-        <main className="flex-1 p-4 lg:p-6">{children}</main>
-      </div>
+    <div className="min-h-screen bg-slate-50">
+      <TopNav usuario={session} />
+      <main className="p-4 lg:p-6">{children}</main>
     </div>
   );
 }

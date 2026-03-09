@@ -1,8 +1,23 @@
 // src/app/(campo)/campo/incidencia/page.tsx
 'use client';
-
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import PhotoUploader from '@/components/campo/PhotoUploader';
+
+const GRAVEDAD = [
+  { value: 'BAJA', label: 'Baja', color: 'bg-slate-100 border-slate-300 text-slate-600' },
+  { value: 'MEDIA', label: 'Media', color: 'bg-amber-50 border-amber-300 text-amber-700' },
+  { value: 'ALTA', label: 'Alta', color: 'bg-orange-50 border-orange-300 text-orange-700' },
+  { value: 'CRITICA', label: 'Cr\u00edtica', color: 'bg-red-50 border-red-300 text-red-700' },
+];
+
+const CATEGORIAS = [
+  { value: 'ELECTRICA', label: '??? El\u00e9ctrica' },
+  { value: 'ESTRUCTURAL', label: '🏗️ Estructural' },
+  { value: 'ESTETICA', label: '🎨 Estética' },
+  { value: 'DOCUMENTAL', label: '📄 Documental' },
+  { value: 'GARANTIA', label: '🛡️ Garantía' },
+];
 
 export default function IncidenciaPage() {
   const router = useRouter();
@@ -10,131 +25,93 @@ export default function IncidenciaPage() {
   const preObraId = searchParams.get('obraId') || '';
   const [obras, setObras] = useState<any[]>([]);
   const [obraId, setObraId] = useState(preObraId);
-  const [gravedad, setGravedad] = useState<'BAJA' | 'MEDIA' | 'ALTA' | 'CRITICA' | ''>('');
+  const [gravedad, setGravedad] = useState('MEDIA');
+  const [categoria, setCategoria] = useState('');
   const [descripcion, setDescripcion] = useState('');
-  const [foto, setFoto] = useState<File | null>(null);
-  const [fotoPreview, setFotoPreview] = useState('');
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+  const [incidenciaId, setIncidenciaId] = useState('');
 
   useEffect(() => {
-    fetch('/api/campo/obras?activas=false').then(r => r.json()).then(d => {
-      if (d.ok) setObras(d.data.filter((o: any) => ['PROGRAMADA','INSTALANDO','VALIDACION_OPERATIVA'].includes(o.estado)));
-    });
+    fetch('/api/campo/obras?activas=false').then(r => r.json()).then(d => { if (d.ok) setObras(d.data); });
   }, []);
 
-  function handleFoto(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (file) { setFoto(file); setFotoPreview(URL.createObjectURL(file)); }
-  }
-
   async function handleSubmit() {
-    if (!obraId || !gravedad || !descripcion) return;
+    if (!obraId || !descripcion || descripcion.length < 5) return;
     setLoading(true);
     try {
       const res = await fetch('/api/campo/incidencias', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ obraId, gravedad, descripcion }),
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' },
+        body: JSON.stringify({ obraId, gravedad, categoria: categoria || undefined, descripcion }),
       });
       const data = await res.json();
-      if (data.ok) { setDone(true); }
-      else { alert(data.error); }
+      if (data.ok) { setIncidenciaId(data.data.id); setDone(true); }
+      else alert(data.error || 'Error');
     } catch { alert('Error de conexión'); }
     finally { setLoading(false); }
   }
 
-  if (done) {
-    return (
-      <div className="text-center py-12">
-        <div className="text-6xl mb-4">⚠️</div>
-        <h2 className="text-xl font-extrabold mb-2">Incidencia reportada</h2>
-        <p className="text-white/40 text-sm mb-6">El coordinador ha sido notificado</p>
-        <button onClick={() => router.push('/campo')} className="h-12 px-8 bg-[#F5820A] text-white font-bold rounded-[14px] text-sm">
-          Volver al inicio
-        </button>
-      </div>
-    );
-  }
-
-  const GRAVEDADES = [
-    { value: 'CRITICA', icon: '⛔', label: 'Crítica', color: 'border-[#DC2626] bg-[#DC2626]/15' },
-    { value: 'ALTA', icon: '🔴', label: 'Alta', color: 'border-[#DC2626] bg-[#DC2626]/10' },
-    { value: 'MEDIA', icon: '🟡', label: 'Media', color: 'border-[#D97706] bg-[#D97706]/10' },
-    { value: 'BAJA', icon: '🔵', label: 'Baja', color: 'border-[#2563EB] bg-[#2563EB]/10' },
-  ] as const;
+  if (done) return (
+    <div className="text-center py-12">
+      <div className="w-16 h-16 bg-amber-100 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">⚠️</div>
+      <h2 className="text-xl font-extrabold text-slate-800 mb-2">Incidencia reportada</h2>
+      <p className="text-slate-400 text-sm mb-3">Gravedad: {gravedad}</p>
+      <div className="mb-6"><PhotoUploader entityType="INCIDENCIA" entityId={incidenciaId} obraId={obraId} tipo="FOTO_GENERAL" maxFotos={5} label="Añadir fotos de la incidencia"/></div>
+      <button onClick={() => router.push('/campo')} className="h-11 px-8 bg-emerald-600 text-white font-bold rounded-xl text-sm active:scale-95">Volver</button>
+    </div>
+  );
 
   return (
     <div>
-      <h2 className="text-lg font-extrabold mb-1">⚠️ Reportar incidencia</h2>
-      <p className="text-sm text-white/40 mb-5">Informa de un problema en la obra</p>
+      <h2 className="text-lg font-extrabold text-slate-800 mb-1">⚠️ Reportar incidencia</h2>
+      <p className="text-sm text-slate-400 mb-5">Informa de un problema en la obra</p>
 
-      {/* Obra */}
-      <div className="mb-4">
-        <label className="block text-[10px] font-bold text-white/30 uppercase tracking-wider mb-1.5">Obra</label>
-        <select value={obraId} onChange={(e) => setObraId(e.target.value)} className="w-full h-12 px-4 bg-white/[0.06] border border-white/[0.08] rounded-[14px] text-white text-sm font-medium appearance-none focus:outline-none focus:border-[#F5820A]/40">
-          <option value="" className="bg-[#1A2E4A]">— Elige obra —</option>
-          {obras.map((o: any) => <option key={o.id} value={o.id} className="bg-[#1A2E4A]">{o.codigo} · {o.cliente.nombre}</option>)}
-        </select>
-      </div>
-
-      {/* Gravedad */}
-      <div className="mb-4">
-        <label className="block text-[10px] font-bold text-white/30 uppercase tracking-wider mb-1.5">Gravedad</label>
-        <div className="grid grid-cols-4 gap-2">
-          {GRAVEDADES.map((g) => (
-            <button
-              key={g.value}
-              onClick={() => setGravedad(g.value)}
-              className={`py-3 rounded-[14px] border-2 flex flex-col items-center gap-1 transition-all active:scale-95
-                ${gravedad === g.value ? g.color : 'border-white/[0.08] bg-white/[0.03]'}`}
-            >
-              <span className="text-2xl">{g.icon}</span>
-              <span className="text-xs font-bold">{g.label}</span>
-            </button>
-          ))}
+      <div className="space-y-4">
+        <div>
+          <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Obra</label>
+          <select value={obraId} onChange={e => setObraId(e.target.value)}
+            className="w-full h-11 px-4 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 appearance-none focus:ring-2 focus:ring-emerald-500/20">
+            <option value="">Seleccionar obra</option>
+            {obras.map((o: any) => <option key={o.id} value={o.id}>{o.codigo} ?? {o.cliente.nombre}</option>)}
+          </select>
         </div>
-      </div>
 
-      {/* Descripción */}
-      <div className="mb-4">
-        <label className="block text-[10px] font-bold text-white/30 uppercase tracking-wider mb-1.5">Descripción del problema</label>
-        <textarea
-          value={descripcion}
-          onChange={(e) => setDescripcion(e.target.value)}
-          placeholder="Describe qué ha pasado..."
-          rows={3}
-          className="w-full px-4 py-3 bg-white/[0.06] border border-white/[0.08] rounded-[14px] text-white text-sm placeholder-white/20 resize-none focus:outline-none focus:border-[#F5820A]/40"
-        />
-      </div>
-
-      {/* Foto */}
-      <div className="mb-6">
-        <label className="block text-[10px] font-bold text-white/30 uppercase tracking-wider mb-1.5">
-          📸 Foto del problema <span className="text-white/15 font-normal normal-case tracking-normal">(recomendada)</span>
-        </label>
-        {fotoPreview ? (
-          <div className="relative w-full h-36 rounded-[14px] overflow-hidden">
-            <img src={fotoPreview} alt="Preview" className="w-full h-full object-cover" />
-            <button onClick={() => { setFoto(null); setFotoPreview(''); }} className="absolute top-2 right-2 w-8 h-8 bg-black/50 rounded-full flex items-center justify-center text-white text-sm">✕</button>
+        <div>
+          <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Gravedad</label>
+          <div className="grid grid-cols-4 gap-2">
+            {GRAVEDAD.map(g => (
+              <button key={g.value} onClick={() => setGravedad(g.value)}
+                className={`h-10 rounded-xl text-xs font-bold border transition-colors ${gravedad === g.value ? g.color : 'bg-white border-slate-200 text-slate-400'}`}>
+                {g.label}
+              </button>
+            ))}
           </div>
-        ) : (
-          <label className="flex flex-col items-center justify-center h-24 bg-white/[0.04] border-2 border-dashed border-white/[0.08] rounded-[14px] cursor-pointer">
-            <span className="text-2xl">📷</span>
-            <span className="text-xs text-white/30 mt-0.5">Toca para abrir cámara</span>
-            <input type="file" accept="image/*" capture="environment" onChange={handleFoto} className="hidden" />
-          </label>
-        )}
-      </div>
+        </div>
 
-      {/* Enviar */}
-      <button
-        onClick={handleSubmit}
-        disabled={!obraId || !gravedad || !descripcion || loading}
-        className="w-full h-14 bg-[#DC2626] text-white font-extrabold text-base rounded-[14px] flex items-center justify-center gap-2 shadow-lg shadow-[#DC2626]/30 active:scale-[0.98] transition-transform disabled:opacity-40"
-      >
-        {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <>⚠️ Enviar incidencia</>}
-      </button>
+        <div>
+          <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Categoría <span className="text-slate-300 font-normal normal-case">(opcional)</span></label>
+          <div className="flex flex-wrap gap-2">
+            {CATEGORIAS.map(c => (
+              <button key={c.value} onClick={() => setCategoria(categoria === c.value ? '' : c.value)}
+                className={`h-9 px-3 rounded-lg text-xs font-bold border transition-colors ${categoria === c.value ? 'bg-emerald-50 border-emerald-400 text-emerald-700' : 'bg-white border-slate-200 text-slate-400'}`}>
+                {c.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Descripción <span className="text-red-400">*</span></label>
+          <textarea value={descripcion} onChange={e => setDescripcion(e.target.value)}
+            placeholder="Describe el problema con detalle..." rows={3}
+            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 placeholder-slate-300 resize-none focus:ring-2 focus:ring-emerald-500/20"/>
+        </div>
+
+        <button onClick={handleSubmit} disabled={!obraId || descripcion.length < 5 || loading}
+          className="w-full h-12 bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm rounded-xl shadow-md shadow-amber-500/25 transition-all disabled:opacity-40 active:scale-[0.98]">
+          {loading ? 'Enviando...' : '⚠️ Reportar incidencia'}
+        </button>
+      </div>
     </div>
   );
 }

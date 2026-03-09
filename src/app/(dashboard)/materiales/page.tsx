@@ -62,7 +62,7 @@ export default function MaterialesPage() {
 
   async function cambiarEstado(id: string, estado: string) {
     await fetch(`/api/materiales/${id}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' },
       body: JSON.stringify({ estado }),
     });
     cargar();
@@ -242,7 +242,7 @@ function CrearSolicitudModal({ onClose, onCreada }: { onClose: () => void; onCre
       lineas: lineas.map(l => ({ ...l, costeUnitario: Math.round(l.costeUnitario * 100), cantidad: l.cantidad })),
     };
     const res = await fetch('/api/materiales', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' }, body: JSON.stringify(body),
     });
     const data = await res.json();
     if (data.ok) onCreada();

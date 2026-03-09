@@ -57,8 +57,7 @@ export default function TareasCrmPage() {
 
   async function completar(id: string) {
     await fetch(`/api/tareas-crm/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' },
       body: JSON.stringify({ estado: 'COMPLETADA' }),
     });
     cargar();

@@ -182,8 +182,7 @@ function FormSubvencion({ onClose, onGuardado }: { onClose: () => void; onGuarda
     if (!form.obraId || !form.importeSolicitado) return;
     setGuardando(true);
     await fetch('/api/subvenciones', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' },
       body: JSON.stringify({
         ...form,
         importeSolicitado: Math.round(parseFloat(form.importeSolicitado) * 100),
@@ -275,8 +274,7 @@ function DetalleSubvencion({ sub, onClose, onGuardado }: { sub: Subvencion; onCl
   async function guardar() {
     setGuardando(true);
     await fetch(`/api/subvenciones/${sub.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' },
       body: JSON.stringify({
         estado: nuevoEstado,
         expediente: expediente || undefined,

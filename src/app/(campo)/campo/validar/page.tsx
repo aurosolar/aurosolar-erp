@@ -36,8 +36,7 @@ export default function ValidarPage() {
     setLoading(true);
     try {
       const res = await fetch('/api/campo/validacion', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' },
         body: JSON.stringify({
           obraId,
           potenciaReal: potenciaReal ? parseFloat(potenciaReal) : null,

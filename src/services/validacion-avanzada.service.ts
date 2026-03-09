@@ -6,6 +6,7 @@
 // ═══════════════════════════════════════════
 
 import { prisma } from '@/lib/prisma';
+import type { ResultadoValidacion } from '@prisma/client';
 import logger from '@/lib/logger';
 
 interface ItemValidacion {
@@ -52,7 +53,7 @@ export async function guardarValidacion(datos: DatosValidacion) {
   // Auto-calcular resultado basándose en ítems
   const criticosFallidos = items.filter(i => i.critico && i.respuesta === 'NO');
   const conObservaciones = items.some(i => i.respuesta === 'OBSERVACION');
-  let resultado: string;
+  let resultado: ResultadoValidacion;
   if (criticosFallidos.length > 0) resultado = 'NO_OK';
   else if (conObservaciones) resultado = 'OK_CON_OBS';
   else resultado = 'OK';
@@ -67,13 +68,13 @@ export async function guardarValidacion(datos: DatosValidacion) {
         resultado,
         serialInversor,
         serialBateria,
-        marcaInversor,
-        modeloInversor,
-        potenciaInversor,
-        marcaBateria,
-        modeloBateria,
-        capacidadBateria,
-        observacionesGenerales,
+        inversorReal: [marcaInversor, modeloInversor, potenciaInversor ? `${potenciaInversor}W` : null].filter(Boolean).join(" ") || null,
+
+
+        bateriaReal: [marcaBateria, modeloBateria, capacidadBateria ? `${capacidadBateria}kWh` : null].filter(Boolean).join(" ") || null,
+
+
+        observaciones: observacionesGenerales,
         // Reset de review (si venía de RECHAZADA)
         reviewedAt: null,
         reviewedById: null,
@@ -92,20 +93,19 @@ export async function guardarValidacion(datos: DatosValidacion) {
           checklistId_codigo: {
             checklistId: existente.id,
             codigo: item.codigo,
+            },
           },
-        },
         create: {
           checklistId: existente.id,
           codigo: item.codigo,
+          pregunta: item.codigo,
           critico: item.critico,
           respuesta: item.respuesta,
-          observacion: item.observacion || null,
-          fotoUrl: item.fotoUrl || null,
+          notas: item.observacion || null,
         },
         update: {
           respuesta: item.respuesta,
-          observacion: item.observacion || null,
-          fotoUrl: item.fotoUrl || null,
+          notas: item.observacion || null,
         },
       });
     }
@@ -126,20 +126,16 @@ export async function guardarValidacion(datos: DatosValidacion) {
       resultado,
       serialInversor,
       serialBateria,
-      marcaInversor,
-      modeloInversor,
-      potenciaInversor,
-      marcaBateria,
-      modeloBateria,
-      capacidadBateria,
-      observacionesGenerales,
+        inversorReal: [marcaInversor, modeloInversor, potenciaInversor ? `${potenciaInversor}W` : null].filter(Boolean).join(" ") || null,
+        bateriaReal: [marcaBateria, modeloBateria, capacidadBateria ? `${capacidadBateria}kWh` : null].filter(Boolean).join(" ") || null,
+        observaciones: observacionesGenerales,
       items: {
         create: items.map(item => ({
           codigo: item.codigo,
+          pregunta: item.codigo,
           critico: item.critico,
           respuesta: item.respuesta,
-          observacion: item.observacion || null,
-          fotoUrl: item.fotoUrl || null,
+          notas: item.observacion || null,
         })),
       },
     },
@@ -166,4 +162,45 @@ export async function guardarValidacion(datos: DatosValidacion) {
   });
 
   return { checklist: nuevo, isNew: true };
+}
+
+// ── Exports de retrocompatibilidad (usados por rutas existentes) ──
+export async function datosPreCarga(obraId: string) {
+  const { prisma } = await import('@/lib/prisma');
+  const obra = await prisma.obra.findUnique({
+    where: { id: obraId },
+    select: {
+      id: true, codigo: true, potenciaKwp: true, numPaneles: true,
+      inversor: true, bateriaKwh: true, marcaPaneles: true, tipo: true,
+      cliente: { select: { nombre: true, apellidos: true } },
+    },
+  });
+  if (!obra) throw new Error('Obra no encontrada');
+  const CHECKLIST_ITEMS = [
+    { codigo: 'INV_ARRANCA', pregunta: 'Inversor arranca y produce', critico: true },
+    { codigo: 'PRODUCCION_OK', pregunta: 'Producción instantánea verificada en app', critico: true },
+    { codigo: 'MONITORIZACION', pregunta: 'Monitorización dada de alta', critico: true },
+    { codigo: 'PROTECCIONES_AC', pregunta: 'Protecciones AC instaladas (MT + diferencial)', critico: true },
+    { codigo: 'SPD_INSTALADO', pregunta: 'SPD instalado', critico: true },
+    { codigo: 'FUSIBLES_DC', pregunta: 'Fusibles DC correctos (si aplica)', critico: false },
+    { codigo: 'SMART_METER', pregunta: 'Smart meter instalado (si aplica)', critico: false },
+    { codigo: 'BATERIA_COM', pregunta: 'Comunicación batería OK (si aplica)', critico: false },
+    { codigo: 'BACKUP_EPS', pregunta: 'Test backup/EPS OK (si aplica)', critico: false },
+    { codigo: 'SELLADO_CUBIERTA', pregunta: 'Sellado cubierta / anclajes OK', critico: true },
+  ];
+  return { ...obra, checklistItems: CHECKLIST_ITEMS, tienesBateria: (obra.bateriaKwh || 0) > 0 };
+}
+
+export async function detalle(id: string) {
+  const { prisma } = await import('@/lib/prisma');
+  return prisma.checklistValidacion.findUnique({ where: { id }, include: { items: true } });
+}
+
+export async function listar(filtros?: { obraId?: string }) {
+  const { prisma } = await import('@/lib/prisma');
+  return prisma.checklistValidacion.findMany({
+    where: filtros?.obraId ? { obraId: filtros.obraId } : {},
+    include: { items: true },
+    orderBy: { createdAt: 'desc' },
+  });
 }

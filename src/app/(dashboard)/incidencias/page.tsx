@@ -31,8 +31,7 @@ export default function IncidenciasPage() {
     if (!resolverModal) return;
     setResolviendo(true);
     const res = await fetch(`/api/incidencias/${resolverModal.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' },
       body: JSON.stringify({ estado: 'RESUELTA', notasResolucion: notaResolucion }),
     });
     if ((await res.json()).ok) { setResolverModal(null); setNotaResolucion(''); cargar(); }

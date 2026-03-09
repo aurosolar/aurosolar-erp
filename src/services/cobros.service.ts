@@ -87,7 +87,7 @@ export async function listarCobros(filtro?: string) {
     return resultado.filter(o => o.pendiente > 0 && o.diasSinCobro >= 30);
   }
   if (filtro === 'terminadas') {
-    return resultado.filter(o => o.pendiente > 0 && ['TERMINADA', 'LEGALIZACION', 'LEGALIZADA', 'COMPLETADA'].includes(o.estado));
+    return resultado.filter(o => o.pendiente > 0 && ['LEGALIZACION', 'LEGALIZADA', 'COMPLETADA'].includes(o.estado));
   }
 
   return resultado.filter(o => o.pendiente > 0).sort((a, b) => b.diasSinCobro - a.diasSinCobro);
@@ -210,7 +210,7 @@ export async function obtenerAlertas(): Promise<AlertaCobro[]> {
   }
 
   // Terminadas sin cobro total
-  const terminadas = cobros.filter(c => c.pendiente > 0 && ['TERMINADA', 'LEGALIZACION', 'LEGALIZADA', 'COMPLETADA'].includes(c.estado));
+  const terminadas = cobros.filter(c => c.pendiente > 0 && ['LEGALIZACION', 'LEGALIZADA', 'COMPLETADA'].includes(c.estado));
   if (terminadas.length > 0) {
     alertas.push({ tipo: 'terminada_sin_cobro', icon: '⚠️', label: 'Terminadas sin cobro total', color: 'amber', conteo: terminadas.length, obraIds: terminadas.map(c => c.id) });
   }

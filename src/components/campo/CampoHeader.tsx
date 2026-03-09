@@ -83,8 +83,7 @@ export function CampoHeader({ nombreUsuario }: { nombreUsuario: string }) {
     setCheckoutLoading(true);
     try {
       const res = await fetch('/api/campo/checkin', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' },
         body: JSON.stringify({ checkinId: checkin.id }),
       });
       const data = await res.json();

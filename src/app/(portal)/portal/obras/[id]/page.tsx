@@ -19,7 +19,6 @@ const ESTADO_STEPS = [
   { key: 'PREPARANDO', label: 'Preparando', icon: '📋' },
   { key: 'PROGRAMADA', label: 'Programada', icon: '📅' },
   { key: 'INSTALANDO', label: 'Instalando', icon: '⚡' },
-  { key: 'TERMINADA', label: 'Instalada', icon: '✅' },
   { key: 'LEGALIZACION', label: 'Legalizando', icon: '📋' },
   { key: 'COMPLETADA', label: 'Completada', icon: '🎉' },
 ];

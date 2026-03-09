@@ -120,7 +120,6 @@ export default function DashboardPage() {
               { e: 'PREPARANDO', l: '📋 Preparando', c: 'bg-estado-amber/10 text-estado-amber border-estado-amber/20' },
               { e: 'PROGRAMADA', l: '📅 Programada', c: 'bg-estado-blue/10 text-estado-blue border-estado-blue/20' },
               { e: 'INSTALANDO', l: '⚡ Instalando', c: 'bg-auro-orange/10 text-auro-orange border-auro-orange/20' },
-              { e: 'TERMINADA', l: '✅ Terminada', c: 'bg-estado-green/10 text-estado-green border-estado-green/20' },
               { e: 'INCIDENCIA', l: '⚠️ Incidencia', c: 'bg-estado-red/10 text-estado-red border-estado-red/20' },
               { e: 'LEGALIZACION', l: '📋 Legal.', c: 'bg-estado-blue/10 text-estado-blue border-estado-blue/20' },
               { e: 'COMPLETADA', l: '🏆 Completada', c: 'bg-estado-green/10 text-estado-green border-estado-green/20' },

@@ -25,7 +25,7 @@ export default function PortalSoportePage() {
     if (!obraId || descripcion.length < 10) return;
     setEnviando(true);
     const res = await fetch('/api/portal/soporte', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' },
       body: JSON.stringify({ obraId, descripcion }),
     });
     if ((await res.json()).ok) {

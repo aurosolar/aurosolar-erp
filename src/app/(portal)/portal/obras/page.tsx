@@ -15,7 +15,6 @@ const ESTADO_LABELS: Record<string, { label: string; icon: string; color: string
   PREPARANDO: { label: 'Preparando', icon: '📋', color: 'bg-estado-amber/10 text-estado-amber' },
   PROGRAMADA: { label: 'Programada', icon: '📅', color: 'bg-estado-blue/10 text-estado-blue' },
   INSTALANDO: { label: 'Instalando', icon: '⚡', color: 'bg-auro-orange/10 text-auro-orange' },
-  TERMINADA: { label: 'Completada', icon: '✅', color: 'bg-estado-green/10 text-estado-green' },
   LEGALIZACION: { label: 'Legalizando', icon: '📋', color: 'bg-estado-blue/10 text-estado-blue' },
   LEGALIZADA: { label: 'Legalizada', icon: '🏆', color: 'bg-estado-green/10 text-estado-green' },
   COMPLETADA: { label: 'Completada', icon: '🎉', color: 'bg-estado-green/10 text-estado-green' },

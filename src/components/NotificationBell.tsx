@@ -80,7 +80,7 @@ export function NotificationBell() {
 
   async function marcarLeida(id: string, enlace?: string | null) {
     await fetch('/api/notificaciones/leer', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' },
       body: JSON.stringify({ id }),
     });
     setNotifs(prev => prev.map(n => n.id === id ? { ...n, leida: true } : n));
@@ -90,7 +90,7 @@ export function NotificationBell() {
 
   async function marcarTodas() {
     await fetch('/api/notificaciones/leer', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aurosolar-erp' },
       body: JSON.stringify({}),
     });
     setNotifs(prev => prev.map(n => ({ ...n, leida: true })));

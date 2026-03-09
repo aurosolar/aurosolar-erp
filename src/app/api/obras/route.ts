@@ -21,14 +21,17 @@ export const GET = withAuth('obras:ver', async (req, { usuario }) => {
     limit: parseInt(searchParams.get('limit') || '50'),
   };
 
-  const resultado = await obrasService.listarObras(filtros, usuario.rol, usuario.id);
+  // Filtrar por rol: instaladores y comerciales solo ven sus obras
+  if (usuario.rol === "INSTALADOR") filtros.instaladorId = usuario.id;
+  if (usuario.rol === "COMERCIAL") filtros.comercialId = usuario.id;
+  const resultado = await obrasService.listarObras(filtros);
   return apiOk(resultado);
 });
 
 // ── POST /api/obras ──
 const crearObraSchema = z.object({
   clienteId: z.string().uuid(),
-  tipo: z.enum(['RESIDENCIAL', 'INDUSTRIAL', 'AGROINDUSTRIAL', 'BATERIA', 'AEROTERMIA', 'BESS', 'BACKUP']),
+  tipo: z.enum(['RESIDENCIAL', 'INDUSTRIAL', 'AGROINDUSTRIAL', 'BATERIA', 'AEROTERMIA', 'BESS', 'BACKUP', 'ALQUILER_CUBIERTA', 'REPARACION', 'SUSTITUCION']),
   direccionInstalacion: z.string().optional(),
   localidad: z.string().optional(),
   provincia: z.string().optional(),
