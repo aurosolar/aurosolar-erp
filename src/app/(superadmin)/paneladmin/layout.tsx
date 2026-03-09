@@ -1,5 +1,6 @@
 // src/app/(superadmin)/superadmin/layout.tsx
 import { redirect } from 'next/navigation';
+import LogoutButton from './logout-button';
 import { getSession } from '@/lib/auth';
 
 export default async function SuperAdminLayout({ children }: { children: React.ReactNode }) {
@@ -16,7 +17,7 @@ export default async function SuperAdminLayout({ children }: { children: React.R
             <div className="text-slate-400 text-xs">Panel de Superadministrador</div>
           </div>
         </div>
-        <a href="/api/auth/logout" className="text-xs text-slate-400 hover:text-white transition-colors">Cerrar sesión</a>
+        <LogoutButton />
       </header>
       <main className="p-6">{children}</main>
     </div>
