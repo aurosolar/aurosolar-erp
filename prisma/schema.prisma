@@ -26,6 +26,38 @@ enum Rol {
   CLIENTE
 }
 
+model Empresa {
+  id          String    @id @default(uuid())
+  nombre      String
+  cif         String?   @unique
+  email       String?
+  telefono    String?
+  direccion   String?
+  logoUrl     String?   @map("logo_url")
+  activa      Boolean   @default(true)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  // Relaciones
+  usuarios    Usuario[]
+  clientes    Cliente[]
+  leads       Lead[]
+  contactos   Contacto[]
+  obras       Obra[]
+  documentos  Documento[]
+  incidencias Incidencia[]
+  notificaciones Notificacion[]
+  actividades Actividad[]
+  catalogos   Catalogo[]
+  configSistema ConfigSistema[]
+  tratos      Trato[]
+  tareasCrm   TareaCrm[]
+
+  @@map("empresas")
+}
+
+
+
 model Usuario {
   id            String    @id @default(uuid())
   email         String    @unique
@@ -39,6 +71,8 @@ model Usuario {
   zona          String?   // Para comerciales
   objetivoMensual Int?    @map("objetivo_mensual") // Céntimos, para comerciales
   clienteId     String?  @map("cliente_id") // Para rol CLIENTE: enlace con su ficha
+  empresaId     String?  @map("empresa_id")
+  empresa       Empresa? @relation(fields: [empresaId], references: [id])
 
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
@@ -104,6 +138,8 @@ model Cliente {
   telefono      String?
   email         String?
   notas         String?
+  empresaId     String?   @map("empresa_id")
+  empresa       Empresa?  @relation(fields: [empresaId], references: [id])
 
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
@@ -170,6 +206,8 @@ model Lead {
   importeEstimado   Int?         @map("importe_estimado") // Céntimos
   notas             String?
 
+  empresaId         String?      @map("empresa_id")
+  empresa           Empresa?     @relation(fields: [empresaId], references: [id])
   comercialId       String?      @map("comercial_id")
   clienteId         String?      @map("cliente_id")
   obraId            String?      @unique @map("obra_id") // Si se convirtió
@@ -302,6 +340,9 @@ model Obra {
   subvenciones      Subvencion[]
   checklistValidaciones ChecklistValidacion[]
   trato             Trato?           @relation("TratoObra")
+
+  empresaId         String?          @map("empresa_id")
+  empresa           Empresa?         @relation(fields: [empresaId], references: [id])
 
   @@map("obras")
 }
@@ -440,6 +481,9 @@ model Documento {
   subidoPor     Usuario       @relation(fields: [subidoPorId], references: [id])
 
   @@index([entityType, entityId])
+  empresaId     String?   @map("empresa_id")
+  empresa       Empresa?  @relation(fields: [empresaId], references: [id])
+
   @@map("documentos")
 }
 
@@ -562,6 +606,9 @@ model Incidencia {
   activo        ActivoInstalado? @relation(fields: [activoId], references: [id])
   creadoPor     Usuario?         @relation("IncidenciaCreador", fields: [creadoPorId], references: [id])
   asignadoA     Usuario?         @relation("IncidenciaAsignado", fields: [asignadoAId], references: [id])
+
+  empresaId     String?   @map("empresa_id")
+  empresa       Empresa?  @relation(fields: [empresaId], references: [id])
 
   @@map("incidencias")
 }
@@ -692,6 +739,9 @@ model Actividad {
   @@index([obraId, createdAt])
   @@index([usuarioId, createdAt])
   @@index([entidad, entidadId])
+  empresaId     String?   @map("empresa_id")
+  empresa       Empresa?  @relation(fields: [empresaId], references: [id])
+
   @@map("actividades")
 }
 
@@ -709,6 +759,9 @@ model Catalogo {
   metadata  String?  // JSON para datos extra (color, icono, etc.)
 
   @@unique([tipo, codigo])
+  empresaId     String?   @map("empresa_id")
+  empresa       Empresa?  @relation(fields: [empresaId], references: [id])
+
   @@map("catalogos")
 }
 
@@ -740,6 +793,9 @@ model Notificacion {
   usuario       Usuario                 @relation(fields: [usuarioId], references: [id])
 
   @@index([usuarioId, leida])
+  empresaId     String?   @map("empresa_id")
+  empresa       Empresa?  @relation(fields: [empresaId], references: [id])
+
   @@map("notificaciones")
 }
 
@@ -875,6 +931,9 @@ model ConfigSistema {
 branding      Json?     @default("{}")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
+  empresaId     String?   @map("empresa_id")
+  empresa       Empresa?  @relation(fields: [empresaId], references: [id])
+
   @@map("config_sistema")
 }
 
@@ -917,6 +976,9 @@ model Contacto {
 
   @@index([comercialId])
   @@index([estado])
+  empresaId     String?   @map("empresa_id")
+  empresaTenant Empresa?  @relation(fields: [empresaId], references: [id])
+
   @@map("contactos")
 }
 
@@ -952,6 +1014,9 @@ model Trato {
 
   @@index([contactoId])
   @@index([estado])
+  empresaId     String?   @map("empresa_id")
+  empresa       Empresa?  @relation(fields: [empresaId], references: [id])
+
   @@map("tratos")
 }
 
@@ -997,6 +1062,9 @@ model TareaCrm {
 
   @@index([asignadoId, estado])
   @@index([contactoId])
+  empresaId     String?   @map("empresa_id")
+  empresa       Empresa?  @relation(fields: [empresaId], references: [id])
+
   @@map("tareas_crm")
 }
 

@@ -90,8 +90,6 @@ export async function getSession() {
   });
 
   if (!sessionEnDb || sessionEnDb.expiresAt < new Date()) {
-    // Borrar cookie muerta para que el cliente no la siga enviando
-    cookieStore.delete(COOKIE_NAME);
     return null;
   }
 

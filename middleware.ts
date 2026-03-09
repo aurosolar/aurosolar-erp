@@ -83,12 +83,11 @@ export async function middleware(req: NextRequest) {
     await jwtVerify(token, SECRET);
     return NextResponse.next();
   } catch {
-    // Token inválido o expirado → borrar cookie y redirigir
+    // Token inválido o expirado → redirigir a login
+    // (la cookie inválida no hace daño — getSession() verifica en DB)
     const loginUrl = new URL('/login', req.url);
     loginUrl.searchParams.set('from', pathname);
-    const response = NextResponse.redirect(loginUrl);
-    response.cookies.delete(COOKIE_NAME);
-    return response;
+    return NextResponse.redirect(loginUrl);
   }
 }
 
