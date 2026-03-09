@@ -8,6 +8,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const session = await getSession();
   if (!session) redirect('/login');
   // Instaladores e jefes de instalaciones van a su vista específica
+  if (session.rol === 'SUPERADMIN') redirect('/paneladmin');
   if (['INSTALADOR', 'JEFE_INSTALACIONES'].includes(session.rol)) {
     redirect('/campo');
   }

@@ -27,7 +27,7 @@ export default function LoginPage() {
         return;
       }
       const rol = data.data.rol;
-      if (rol === 'SUPERADMIN') router.push('/superadmin');
+      if (rol === 'SUPERADMIN') router.push('/paneladmin');
       else if (rol === 'INSTALADOR') router.push('/campo');
       else if (rol === 'COMERCIAL') router.push('/crm');
       else router.push('/dashboard');
