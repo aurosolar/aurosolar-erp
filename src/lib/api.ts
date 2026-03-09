@@ -45,6 +45,7 @@ type HandlerContext = {
     rol: Rol;
     activo: boolean;
     clienteId: string | null;
+    empresaId: string | null;
   };
   params?: Record<string, string>;
 };
@@ -129,6 +130,7 @@ export function withAuthOptional(handler: RouteHandler) {
         rol: 'CLIENTE' as Rol,
         activo: false,
         clienteId: null,
+        empresaId: null,
       },
       params: nextCtx?.params,
     });

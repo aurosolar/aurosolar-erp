@@ -16,15 +16,15 @@ const crearSchema = z.object({
   objetivoMensual: z.number().int().optional(),
 });
 
-export const GET = withAuth('usuarios:ver', async () => {
-  const usuarios = await usuariosService.listarUsuarios();
+export const GET = withAuth('usuarios:ver', async (_req, ctx) => {
+  const usuarios = await usuariosService.listarUsuarios(ctx.usuario.empresaId || "");
   return apiOk(usuarios);
 });
 
-export const POST = withAuth('usuarios:gestionar', async (req) => {
+export const POST = withAuth('usuarios:gestionar', async (req, ctx) => {
   try {
     const input = await crearSchema.parseAsync(await req.json());
-    const usuario = await usuariosService.crearUsuario(input);
+    const usuario = await usuariosService.crearUsuario({ ...input, empresaId: ctx.usuario.empresaId || "" });
     return apiOk(usuario, 201);
   } catch (e) {
     return apiError(e instanceof Error ? e.message : 'Error', 422);

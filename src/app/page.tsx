@@ -12,6 +12,8 @@ export default async function Home() {
 
   // Redirigir según rol
   switch (session.rol) {
+    case 'SUPERADMIN':
+      redirect('/superadmin');
     case 'INSTALADOR':
       redirect('/campo');
     case 'COMERCIAL':

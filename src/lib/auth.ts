@@ -104,6 +104,7 @@ export async function getSession() {
       rol: true,
       activo: true,
       clienteId: true,
+      empresaId: true,
     },
   });
 
@@ -275,6 +276,8 @@ const PERMISOS: Record<string, Permiso> = {
 };
 
 export function tienePermiso(rol: Rol, permiso: string): boolean {
+  // SUPERADMIN tiene acceso a todo excepto el portal de clientes
+  if (rol === 'SUPERADMIN') return !permiso.startsWith('portal:');
   const config = PERMISOS[permiso];
   if (!config) return false;
   return config.roles.includes(rol);

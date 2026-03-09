@@ -2,7 +2,6 @@
 import { z } from 'zod';
 import { withAuth, apiOk, apiError } from '@/lib/api';
 import * as usuariosService from '@/services/usuarios.service';
-
 export const dynamic = 'force-dynamic';
 
 const updateSchema = z.object({
@@ -16,11 +15,11 @@ const updateSchema = z.object({
   password: z.string().min(6).optional(),
 });
 
-export const PATCH = withAuth('usuarios:gestionar', async (req) => {
+export const PATCH = withAuth('usuarios:gestionar', async (req, ctx) => {
   const id = req.nextUrl.pathname.split('/').pop()!;
   try {
     const input = await updateSchema.parseAsync(await req.json());
-    const usuario = await usuariosService.actualizarUsuario(id, input);
+    const usuario = await usuariosService.actualizarUsuario(id, ctx.usuario.empresaId || "", input);
     return apiOk(usuario);
   } catch (e) {
     return apiError(e instanceof Error ? e.message : 'Error', 422);
